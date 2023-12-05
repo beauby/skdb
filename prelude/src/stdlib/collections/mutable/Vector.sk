@@ -246,6 +246,15 @@ mutable class .Vector<+T> private (
     this.invalidateIterators();
   }
 
+  mutable fun unsafeSetSize(newSize: Int): void {
+    this.!sz = newSize;
+    this.invalidateIterators();
+  }
+
+  mutable fun unsafeSpareCapacityBytes(): mutable MutableBytes {
+    this.inner.mbytes().mslice(this.sz, this.inner.size())
+  }
+
   // # Accessing Items
 
   // Get the item at the given index, throws if the index is out of bounds.
