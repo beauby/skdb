@@ -185,3 +185,22 @@ void* SKIP_context_sync(uint64_t txTime, char* old_root, char* delta,
 int64_t SKIP_Unsafe_Ptr__toInt(char *ptr) {
   return (int64_t)ptr;
 }
+
+void* SKIP_Unsafe_array_ptr(char* arr, int64_t offset) {
+  return arr + offset;
+}
+
+int64_t SKIP_Unsafe_array_byte_size(char* arr) {
+  SKIP_gc_type_t* ty = *(*(((SKIP_gc_type_t***)arr) - 1) + 1);
+  size_t len = *(uint32_t*)(arr - sizeof(char*) - sizeof(uint32_t));
+
+  return ty->m_userByteSize * len;
+}
+
+uint8_t SKIP_Unsafe_array_get_byte(uint8_t* arr, int64_t index) {
+  return arr[index];
+}
+
+void SKIP_Unsafe_array_set_byte(uint8_t* arr, int64_t index, uint8_t value) {
+  arr[index] = value;
+}
