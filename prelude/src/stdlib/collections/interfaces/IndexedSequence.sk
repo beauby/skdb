@@ -77,8 +77,8 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
 
   // Returns a new sequence representing the items of this sequence followed by
   // the items of the second sequence.
-  overridable readonly fun concat<U, S: readonly Sequence<U>>[T: U](
-    second: S,
+  overridable readonly fun concat<U>[T: U](
+    second: readonly Sequence<U>,
   ): IndexedSequence<U> {
     result = Vector<U>::mcreateFromItems(this);
     result.extend(second);
@@ -325,200 +325,11 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
 }
 
 mutable base class .MutableIndexedSequence<+T> extends IndexedSequence<T> {
-  // Create a mutable container with the given capacity.
-  static fun mcreate(capacity: Int = 0): mutable this;
-
-  // Create a frozen container from a sequence of items.
-  overridable static deferred fun createFromItems<I: readonly Sequence<T>>(
-    items: I,
-  ): this {
-    unsafe_chill_trust_me(static::mcreateFromItems(items))
-  }
-
-  // Create a mutable container from a sequence of items.
-  overridable static deferred fun mcreateFromItems<I: readonly Sequence<T>>(
-    items: I,
-  ): mutable this {
-    size = items.size();
-    result = static::mcreate(size);
-    items.each(result.push);
-    invariant(
-      size == result.size(),
-      "Sequence yielded incorrect number of items.",
-    );
-    result
-  }
-
-  // Create a mutable, shallow copy of the contents of this container.
-  // The capacity of the returned container is only guaranteed to be
-  // greater than or equal to this' size. To ensure space for more items,
-  // pass a non-zero reserveCapacity.
-  overridable readonly fun clone(_reserveCapacity: Int = 0): mutable this {
-    static::mcreateFromItems(this)
-  }
-
-  // # Sizing
-  // Methods to query or change the size or capacity of a container.
-
-  // Returns the total number of items this container can hold given the
-  // current size of its internal storage.
-  // NOTE: Making capacity observable on frozen values prevents optimizations such
-  // as shrinking to fit on freeze. By making it mutable we preserve option value
-  // to add such optimizations in the future.
-  overridable mutable fun capacity(): Int {
-    this.size()
-  }
-
-  // Grows the container's internal storage as necessary to ensure that the
-  // container has capacity for at least the specified number of items: the
-  // container may grow more than requested.
-  overridable mutable fun ensureCapacity(_capacity: Int): void {
-    void
-  }
-
-  // Remove all items, setting the container's size to 0 without changing its
-  // capacity.
-  overridable mutable fun clear(): void {
-    for (_ in Range(0, this.size())) _ = this.pop();
-  }
-
-  // Update the collection's size to the new size as follows:
-  // - When the new size is greater than the current size, the collection's
-  //   internal storage is expanded as necessary and slots between the
-  //   previous/new size are filled with the given value.
-  // - When the new size is less than the current size the collection is
-  //   truncated.
-  // - Has no effect when the new size equals the current size.
-  overridable mutable fun resize(newSize: Int, value: T): void {
-    size = this.size();
-    if (size < newSize) {
-      for (_ in Range(size, newSize)) this.push(value);
-    } else if (size > newSize) {
-      for (_ in Range(newSize, size)) _ = this.pop();
-    }
-  }
-
   // # Adding/Changing/Removing Items
 
   // Set the value at the given index. Throws if the index is out of bounds.
   // NOTE: To add items to the end of a container use push().
   mutable fun set(index: Int, value: T): void;
-
-  // Add the value to the end of the container, growing the container's
-  // internal storage if necessary to make space for the item.
-  mutable fun push(value: T): void;
-
-  // Remove the last item of the container and return it. Throws if the
-  // container is empty.
-  overridable mutable fun pop(): T {
-    this.maybePop() match {
-    | Some(v) -> v
-    | None _ -> throwOutOfBounds()
-    }
-  }
-
-  // Remove the last item of the container and return it as Some() if
-  // non-empty, otherwise returns None().
-  mutable fun maybePop(): ?T;
-
-  // Append all of items from the given sequence to the end of this container.
-  overridable mutable fun extend<I: readonly Sequence<T>>(second: I): void {
-    second.each(this.push);
-  }
-
-  // Inserts the value at the given index, shifting over existing elements to
-  // make room for the new element. Grows internal storage if necessary: throws
-  // if the index is out of bounds.
-  // NOTE: unlike set(), insert() allows inserting at index == size
-  overridable mutable fun insert(index: Int, value: T): void {
-    size = this.size();
-    if (index.ugt(size)) {
-      throwOutOfBounds()
-    } else if (index == size) {
-      this.push(value);
-    } else {
-      this.push(this[index]);
-      this.move(index, index + 1, size - index);
-      this![index] = value;
-    }
-  }
-
-  // Deletes the value at the given index, shifting over elements after that
-  // index to fill the gap. Throws if the index is out of bounds.
-  @synonym("erase")
-  @synonym("remove")
-  overridable mutable fun delete(index: Int): void {
-    size = this.size();
-    if (index.uge(size)) {
-      throwOutOfBounds()
-    };
-
-    this.move(index + 1, index, size - index - 1);
-    _ = this.pop();
-  }
-
-  // Deletes the items in the range of start (inclusive) to end (exclusive)
-  // and inserts the items from the second sequence at the start index. If
-  // second is smaller than the length of the slice denoted by start/end, then
-  // subsequent items will be shifted left to fill any gaps. If second is larger
-  // than the start-end slice, then subsequent items will be shifted right to
-  // make room.
-  //
-  // # Visual Example
-  //
-  // Before:
-  //   [ ...prefix, ...start-end, ...suffix ]
-  // After:
-  //   [ ...prefix, ...second, ...suffix ]
-  overridable mutable fun splice<I: readonly Sequence<T>>(
-    start: Int,
-    end: Int,
-    second: I,
-  ): void {
-    size = this.size();
-
-    // Start/count must be positive but are allowed to exceed bounds
-    invariant(
-      start >= 0,
-      "Vector.splice(): Expected start index to be nonnegative.",
-    );
-    invariant(
-      end >= start,
-      "Vector.splice(): Expected end to be greater than or equal to start.",
-    );
-    // Clamp such that start is in the range [0, sz], start + count <= sz
-    !start = min(start, size);
-    !end = min(end, size);
-
-    removeSize = end - start;
-    // Special case replacing the whole thing (or an empty sequence to start)
-    if (removeSize == size) {
-      this.clear();
-      this.extend(second);
-      return void;
-    };
-
-    addSize = second.size();
-    oldSize = size;
-    newSize = size - removeSize + addSize;
-
-    if (addSize > removeSize) {
-      !size = newSize;
-      this.resize(size, this.get(0));
-    };
-
-    // move the stuff after to the end
-    this.move(end, start + addSize, oldSize - end);
-
-    // fill in the gap
-    second.eachWithIndex((i, v) -> {
-      this![start + i] = v;
-    });
-
-    if (size != newSize) {
-      this.resize(newSize, this.get(0));
-    }
-  }
 
   private mutable fun move(src: Int, dst: Int, count: Int): void {
     size = this.size();
@@ -538,27 +349,6 @@ mutable base class .MutableIndexedSequence<+T> extends IndexedSequence<T> {
     }
   }
 
-  // Remove all items from this sequence for which the predicate returns
-  // false, keeping only those items for which the predicate returns true.
-  @synonym("retain")
-  overridable mutable fun keepWhere(p: T -> Bool): void {
-    size = this.size();
-    out = 0;
-    for (i in Range(0, size)) {
-      src = this[i];
-      if (p(src)) {
-        if (out != i) {
-          this![out] = src;
-        };
-        !out = out + 1;
-      }
-    };
-    if (out == 0) {
-      this.clear();
-    } else {
-      this.resize(out, this[0]);
-    }
-  }
   // # Reordering Items
 
   private mutable fun swap(i: Int, j: Int): void {
@@ -609,7 +399,9 @@ mutable base class .MutableIndexedSequence<+T> extends IndexedSequence<T> {
   ): void {
     tmp = Array::mcreateFromItems(this);
     tmp.sortBy(selector, compare);
-    this.splice(0, this.size(), tmp);
+    for ((i, v) in tmp.items()) {
+      this![i] = v
+    }
   }
 }
 

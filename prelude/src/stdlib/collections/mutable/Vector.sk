@@ -880,7 +880,7 @@ mutable class .Vector<+T> private (
 
   // Returns a new Vector containing the items of this sequence followed by
   // the items of the second sequence.
-  readonly fun concat<U, S: readonly Sequence<U>>[T: U](second: S): Vector<U> {
+  readonly fun concat<U>[T: U](second: readonly Sequence<U>): Vector<U> {
     result = (this : readonly Vector<U>).clone(second.size());
     result.extend(second);
     unsafe_chill_trust_me(result)
