@@ -373,7 +373,11 @@ fun printDoc(
             } else {
               // At this point we've handled the first pair (context, separator)
               // and will create a new fill doc for the rest of the content.
-              remainingCmd = Command(ind, mode, Fill(parts.slice(2)));
+              remainingCmd = Command(
+                ind,
+                mode,
+                Fill(parts.slice(2).collect(Vector)),
+              );
 
               secondContent = parts[2];
 

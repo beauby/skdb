@@ -19,7 +19,7 @@ fun decode(source: .String): TOML.Table {
     | TRawString _
     | TString _ ->
       (key, value) = decodeAssignment(lexer);
-      tableKey = key.slice(0, -1);
+      tableKey = key.slice(0, -1).collect(.Array);
       valueKey = key.last();
 
       table = curTable.createOrGetTable(tableKey, /* isTableHeader = */ false);
@@ -43,7 +43,7 @@ fun decode(source: .String): TOML.Table {
       curTable.!explicit = true;
       !curTableKey = decodeKey(lexer);
       parent = result.createOrGetTable(
-        curTableKey.slice(0, -1),
+        curTableKey.slice(0, -1).collect(.Array),
         /* isTableHeader = */ true,
       );
       !curTable = if (parent.map.containsKey(curTableKey.last())) {
@@ -225,7 +225,7 @@ private fun decodeInlineTable(lexer: mutable Lexer): TOML.Table {
     pos = lexer.iter.clone();
     (key, value) = decodeAssignment(lexer);
     parent = table.createOrGetTable(
-      key.slice(0, -1),
+      key.slice(0, -1).collect(.Array),
       /* isTableHeader = */ false,
     );
     if (parent.map.containsKey(key.last())) {
@@ -332,7 +332,7 @@ private mutable base class Result {
 
   mutable fun createOrGetArray(key: .Array<.String>): mutable RTable {
     parent = this.createOrGetTable(
-      key.slice(0, -1),
+      key.slice(0, -1).collect(.Array),
       /* isTableHeader = */ false,
     );
     if (!parent.map.containsKey(key.last())) {

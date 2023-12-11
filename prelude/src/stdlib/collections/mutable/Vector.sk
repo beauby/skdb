@@ -515,31 +515,6 @@ mutable class .Vector<+T> private (
 
   // # Selecting Portions of a Sequence
 
-  // Returns the items of this container from the start index (inclusive) up to
-  // the end index (exclusive). The start/end values may be negative, in which
-  // case they refer to the nth index before the end of the container.
-  // For example, `x.slice(0, -2)` is equivalent to `x.slice(0, x.size() - 2)`.
-  readonly fun slice(start: Int, end: Int = Int::max): this {
-    sz = this.sz;
-    if (start < 0) {
-      !start = max(0, sz + start);
-    };
-    if (end < 0) {
-      !end = max(0, sz + end);
-    };
-    !start = min(sz, start);
-    !end = min(sz, end);
-    if (end <= start) {
-      Vector[]
-    } else {
-      thisInner = this.inner;
-      capacity = end - start;
-      sliceInner = unsafeMake(capacity);
-      unsafeMoveSlice(thisInner, start, end, sliceInner, 0);
-      static(unsafe_chill_trust_me(sliceInner), capacity)
-    }
-  }
-
   // Returns the items of this container that do not appear in the second
   // sequence.
   readonly fun difference<S: readonly Sequence<T>>[T: Hashable & Equality](
@@ -839,14 +814,14 @@ mutable class .Vector<+T> private (
 
   // Returns a new sequence representing the elements of this sequence after the
   // nth element.
-  readonly fun drop(n: Int): Vector<T> {
+  readonly fun drop(n: Int): readonly IndexedSequence<T> {
     invariant(n >= 0, "Vector.drop(): Expected count to be nonnegative.");
     this.slice(n)
   }
 
   // Returns a new sequence representing the elements of this sequence after the
   // contiguous prefix for which the predicate returns true.
-  readonly fun dropWhile(p: T -> Bool): Vector<T> {
+  readonly fun dropWhile(p: T -> Bool): readonly IndexedSequence<T> {
     index = -1;
     found = this.find(value -> {
       !index = index + 1;
@@ -859,14 +834,14 @@ mutable class .Vector<+T> private (
   }
 
   // Returns a new sequence representing the first n elements of this.
-  readonly fun take(n: Int): Vector<T> {
+  readonly fun take(n: Int): readonly IndexedSequence<T> {
     invariant(n >= 0, "Vector.take(): Expected count to be nonnegative.");
     this.slice(0, n)
   }
 
   // Returns a new sequence representing the contiguous prefix of elements from
   // this for which the predicate returns true.
-  readonly fun takeWhile(p: T -> Bool): Vector<T> {
+  readonly fun takeWhile(p: T -> Bool): readonly IndexedSequence<T> {
     result = Vector::mcreate(0);
     for (x in this) {
       if (p(x)) {

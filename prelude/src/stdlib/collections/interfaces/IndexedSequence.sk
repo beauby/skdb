@@ -95,21 +95,7 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
     start: Int,
     end: Int = Int::max,
   ): readonly IndexedSequence<T> {
-    sz = this.size();
-    if (start < 0) {
-      !start = max(0, sz + start);
-    };
-    if (end < 0) {
-      !end = max(0, sz + end);
-    };
-    !start = min(sz, start);
-    !end = min(sz, end);
-    if (end <= start) {
-      Vector[]
-    } else {
-      capacity = end - start;
-      Vector::fillBy(capacity, i -> this.get(i + start))
-    }
+    mutable IndexedSubsequence(this, Range(0, this.size()).subrange(start, end))
   }
 
   // Returns the items of this container that do not appear in the second

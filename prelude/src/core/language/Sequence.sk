@@ -177,24 +177,24 @@ mutable base class .Sequence<+T> uses IntoIterator<T> {
 
   // Returns a new sequence representing the elements of this sequence after the
   // nth element.
-  overridable readonly fun drop(n: Int): Sequence<T> {
+  overridable readonly fun drop(n: Int): readonly Sequence<T> {
     this.values().drop(n).collect(Vector)
   }
 
   // Returns a new sequence representing the elements of this sequence after the
   // contiguous prefix for which the predicate returns true.
-  overridable readonly fun dropWhile(p: T -> Bool): Sequence<T> {
+  overridable readonly fun dropWhile(p: T -> Bool): readonly Sequence<T> {
     this.values().dropWhile(p).collect(Vector)
   }
 
   // Returns a new sequence representing the first n elements of this.
-  overridable readonly fun take(n: Int): Sequence<T> {
+  overridable readonly fun take(n: Int): readonly Sequence<T> {
     this.values().take(n).collect(Vector)
   }
 
   // Returns a new sequence representing the contiguous prefix of elements from
   // this for which the predicate returns true.
-  overridable readonly fun takeWhile(p: T -> Bool): Sequence<T> {
+  overridable readonly fun takeWhile(p: T -> Bool): readonly Sequence<T> {
     this.values().takeWhile(p).collect(Vector)
   }
 

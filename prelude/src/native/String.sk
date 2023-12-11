@@ -36,7 +36,7 @@ fun invalidUtf8(): void {
 }
 
 private fun blockIterator<T>(
-  input: Sequence<T>,
+  input: readonly Sequence<T>,
   blockSize: Int,
 ): mutable Iterator<Array<T>> {
   loop {

@@ -239,26 +239,6 @@ mutable native class .Array<+T>
     InspectVector("Array", this.map(e -> inspect(e)))
   }
 
-  // # Selecting Portions of a Sequence
-
-  readonly fun slice(start: Int, end: Int = Int::max): this {
-    sz = this.size();
-    if (start < 0) {
-      !start = max(0, sz + start);
-    };
-    if (end < 0) {
-      !end = max(0, sz + end);
-    };
-    !start = min(sz, start);
-    !end = min(sz, end);
-    if (end <= start) {
-      Array[]
-    } else {
-      capacity = end - start;
-      static::fillBy(capacity, i -> this.unsafe_get(start + i))
-    }
-  }
-
   // # Aggregation
 
   readonly fun indexOf<S: Equality>[T: S](v: S): ?Int {

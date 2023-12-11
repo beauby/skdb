@@ -695,7 +695,7 @@ extension class .Vector uses Perturb[T: Perturb], Shrinkable[T: Shrinkable] {
         yield Vector[last]
       };
       for (size in this.size().shrink(firstShrink)) {
-        yield this.slice(0, size);
+        yield this.slice(0, size).collect(Vector);
       };
     };
   }

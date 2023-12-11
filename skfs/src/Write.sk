@@ -98,7 +98,7 @@ fun getWriteValue(getChar: () -> Char): ?String {
           continue
         };
         if (c == '\n') {
-          break Some(unescape(chars.slice(0, chars.size() - 1)))
+          break Some(unescape(chars.slice(0, chars.size() - 1).collect(Vector)))
         };
         chars.push(c);
       }
