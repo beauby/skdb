@@ -14,7 +14,7 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
   // # Creating Sequences
 
   // Return a chilled (shallowly frozen) copy of this sequence.
-  readonly fun chill(): this;
+  readonly fun chill(): readonly IndexedSequence<T>;
 
   // # Accessing Items
 
@@ -94,7 +94,7 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
   overridable readonly fun slice(
     start: Int,
     end: Int = Int::max,
-  ): IndexedSequence<T> {
+  ): readonly IndexedSequence<T> {
     sz = this.size();
     if (start < 0) {
       !start = max(0, sz + start);
@@ -175,7 +175,7 @@ mutable base class .IndexedSequence<+T> extends Sequence<T> {
   overridable readonly fun sample(
     rng: mutable Random,
     count: Int,
-  ): IndexedSequence<T> {
+  ): readonly IndexedSequence<T> {
     sz = this.size();
     if (count == 0) {
       Vector[]
@@ -424,6 +424,85 @@ private mutable class IndexedSequenceIterator<T>(
     } else {
       None()
     }
+  }
+}
+
+private mutable class IndexedSubsequence<+T, U: readonly IndexedSequence<T>>(
+  inner: U,
+  range: Range,
+) extends IndexedSequence<T> uses AsBytes[U: AsBytes] {
+  readonly fun chill(): IndexedSequence<T> {
+    IndexedSubsequence(this.inner.chill(), this.range)
+  }
+
+  readonly fun get(index: Int): T {
+    this.inner.get(this.range.start + index)
+  }
+
+  readonly fun size(): Int {
+    this.range.size()
+  }
+
+  readonly fun slice(
+    start: Int,
+    end: Int = Int::max,
+  ): readonly IndexedSequence<T> {
+    mutable IndexedSubsequence(this.inner, this.range.subrange(start, end))
+  }
+
+  readonly fun bytes[U: AsBytes](): readonly Bytes {
+    invariant_violation("TODO")
+  }
+}
+
+private mutable class MutableIndexedSubsequence<
+  +T,
+  U: mutable MutableIndexedSequence<T>,
+>(
+  inner: U,
+  range: Range,
+)
+  extends MutableIndexedSequence<T>
+  uses AsBytes[U: AsBytes], AsMutableBytes[U: AsMutableBytes] {
+  readonly fun chill(): IndexedSequence<T> {
+    IndexedSubsequence(this.inner.chill(), this.range)
+  }
+
+  readonly fun get(index: Int): T {
+    this.inner.get(this.range.start + index)
+  }
+
+  mutable fun set(index: Int, value: T): void {
+    this.inner.set(this.range.start + index, value)
+  }
+
+  readonly fun size(): Int {
+    this.range.size()
+  }
+
+  readonly fun slice(
+    start: Int,
+    end: Int = Int::max,
+  ): readonly IndexedSequence<T> {
+    mutable IndexedSubsequence(this.inner, this.range.subrange(start, end))
+  }
+
+  mutable fun mslice(
+    start: Int,
+    end: Int = Int::max,
+  ): mutable MutableIndexedSequence<T> {
+    mutable MutableIndexedSubsequence(
+      this.inner,
+      this.range.subrange(start, end),
+    )
+  }
+
+  readonly fun bytes[U: AsBytes](): readonly Bytes {
+    invariant_violation("TODO")
+  }
+
+  mutable fun mbytes[U: AsMutableBytes](): mutable MutableBytes {
+    invariant_violation("TODO")
   }
 }
 
