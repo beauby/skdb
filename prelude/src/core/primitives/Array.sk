@@ -9,7 +9,7 @@ module Array;
 
 // A contiguous, fixed-size list/array-like type.
 mutable native class .Array<+T>
-  extends Sequence<T>
+  extends MutableIndexedSequence<T>
   uses
     IntoIterator<T>,
     FromIterator<T>,
@@ -446,12 +446,16 @@ mutable native class .Array<+T>
     unsafe_chill_trust_me(result)
   }
 
-  readonly fun concat<T2>[T: T2](other: Array<T2>): Array<T2> {
+  readonly fun concat<U>[T: U](other: readonly Sequence<U>): Array<U> {
     n = this.size();
-    m = other.size();
-    (static : Concrete<Array<T2>>)::fillBy(n + m, i ->
-      if (i < n) (this : readonly Array<T2>)[i] else other[i - n]
-    )
+    other match {
+    | o @ IndexedSequence _ ->
+      m = other.size();
+      Array<U>::fillBy(n + m, i ->
+        if (i < n) (this : readonly Array<U>)[i] else o[i - n]
+      )
+    | _ -> (this : readonly IndexedSequence<U>).concat(other).collect(Array<U>)
+    }
   }
 
   readonly fun reversed(): Array<T> {
