@@ -12,6 +12,10 @@ private fun hostTarget(): String {
   "x86_64-pc-linux-gnu"
 }
 
+private fun defaultSysroot(): String {
+  invariant_violation("TODO")
+}
+
 private class Config{
   release: Bool,
   verbose: Bool,
@@ -42,7 +46,10 @@ private class Config{
   ptrByteSize: Int,
   ptrBitSize: Int,
   vtableByteSize: Int,
-  links: Array<String>,
+  sysroot: String,
+  libraries: Array<String>,
+  libraryPaths: Array<String>,
+  dependencies: Array<String>,
   preambles: Array<String>,
 } {
   static fun make(results: Cli.ParseResults): this {
@@ -134,19 +141,18 @@ private class Config{
     vtableByteSize = ptrByteSize;
 
     basePath = Path.parentname(Path.dirname(Environ.current_exe()));
-    links = Environ.varOpt("SKC_LINK") match {
-    | Some(skcLink) if (!skcLink.trim().isEmpty()) ->
-      skcLink.split(Path.listSeparator).toArray()
-    | _ if (target.startsWith("wasm32")) ->
-      Array[Path.join(basePath, "lib", "libskip_runtime32.bc")]
-    | _ ->
-      // TODO: Link libbacktrace only when building with a debug/dev profile?
-      Array[
-        Path.join(basePath, "lib", "libskip_runtime64.a"),
-        Path.join(basePath, "lib", "libbacktrace.a"),
-        "-lpthread",
-      ]
-    };
+
+    sysroot = results.maybeGetString("sysroot").default(defaultSysroot());
+    libraryPaths = results
+      .getArray("library-paths")
+      .concat(Array[sysroot])
+      .collect(Array);
+    libraries = results.getArray("libraries");
+    dependencies = results.getArray("dependencies");
+
+    // TODO: Allow control via `--no-std`.
+    !dependencies = dependencies.concat(Array["std"]).collect(Array);
+
     preambles = Environ.varOpt("SKC_PREAMBLE") match {
     | Some(skcPreamble) if (!skcPreamble.trim().isEmpty()) ->
       skcPreamble.split(Path.listSeparator).toArray()
@@ -181,7 +187,10 @@ private class Config{
       ptrByteSize,
       ptrBitSize,
       vtableByteSize,
-      links,
+      sysroot,
+      libraryPaths,
+      libraries,
+      dependencies,
       preambles,
     }
   }

@@ -121,10 +121,12 @@ fun link(
         `-O${config.optLevel}`,
         "-mllvm",
         "-inline-threshold=0",
-        llFile,
         "-o",
         config.output,
-      ].concat(config.links),
+        llFile,
+      ].concat(config.dependencies.join(" "))
+        .concat(config.libraries.map(x -> `-l${x}`))
+        .concat(config.libraryPaths.map(x -> `-L ${x}`)),
       config.verbose,
     );
   }

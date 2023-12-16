@@ -47,6 +47,11 @@ fun main(): void {
     .arg(Cli.StringArg("data"))
     .arg(Cli.StringArg("init"))
     .arg(Cli.BoolArg("check"))
+    // TODO: Support `--no-stdlib`.
+    .arg(Cli.ArrayArg("dependencies").long("sklib"))
+    .arg(Cli.ArrayArg("libraries").short("l"))
+    .arg(Cli.ArrayArg("library-paths").short("L"))
+    .arg(Cli.StringArg("sysroot"))
     .arg(Cli.ArrayArg("files").positional().default(Array[]))
     .parseArgs();
 
