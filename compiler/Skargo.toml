@@ -7,6 +7,7 @@ test-harness = "SkcTests.main"
 [dependencies]
 skfs = { "path" = "../skfs" }
 cli = { "path" = "../cli" }
+arparser = { "path" = "../arparser" }
 
 [[bin]]
 name = "skc"

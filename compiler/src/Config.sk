@@ -17,7 +17,9 @@ private class Config{
   verbose: Bool,
   debug: Bool,
   optConfig: Optimize.Config,
-  unknown: Array<String>,
+  unknown: Array<String>, // FIXME: Rename to input_files
+  direct_dependencies: Array<String>,
+  dependencies: Map<String, (String, Sklib.Metadata, Bool)>,
   exportedFunctions: UnorderedSet<String>,
   exportedAsFunctions: UnorderedMap<String, String>,
   disasmAll: Bool,
@@ -27,6 +29,7 @@ private class Config{
   output: String,
   // profilePath: String,
   emit: String,
+  lib_name: ?String,
   target: String,
   optLevel: Int,
   asan: Bool,
@@ -43,7 +46,9 @@ private class Config{
   ptrByteSize: Int,
   ptrBitSize: Int,
   vtableByteSize: Int,
-  links: Array<String>,
+  sysroot: String,
+  libraries: Array<String>,
+  libraryPaths: Array<String>,
   preambles: Array<String>,
 } {
   static fun make(results: Cli.ParseResults): this {
@@ -57,12 +62,71 @@ private class Config{
       results.getBool("goto"),
       results.getBool("verify"),
     );
-
     release = results.getBool("release");
-    debug = results.getBool("debug");
-    verbose = debug || results.getBool("verbose");
+    debug_info = results.getBool("debug");
+    verbose = debug_info || results.getBool("verbose");
     // preserve legacy behavior of capturing all unmatched args in a single array
     unknown = results.getArray("files");
+    output = results.maybeGetString("output").default("-");
+    emit = results.getString("emit");
+    if (output.endsWith(".sklib")) {
+      // TODO: Check for inconsistencies between `-o foo.sklib` and `--emit`.
+      !emit = "sklib"
+    };
+    lib_name = if (emit == "sklib") {
+      Some(
+        results
+          .maybeGetString("sklib-name")
+          .default(
+            results.maybeGetString("output") match {
+            | Some(path) ->
+              if (path.contains("/")) {
+                !path = path.splitLast("/").i1
+              };
+              if (path.endsWith(".sklib")) {
+                !path = path.stripSuffix(".sklib")
+              };
+              path
+            | None() -> "lib.sklib"
+            },
+          ),
+      )
+    } else {
+      None()
+    };
+    target = results.maybeGetString("target").default(hostTarget());
+    optLevel = results.getString("opt-level").toInt();
+
+    basePath = Path.parentname(Path.dirname(Environ.current_exe()));
+
+    sysroot = results
+      .maybeGetString("sysroot")
+      .default(Path.join(basePath, "lib"));
+    libraryPaths = results
+      .getArray("library-paths")
+      .concat(Array[sysroot])
+      .collect(Array);
+    libraries = results.getArray("libraries");
+
+    dep_roots = results.getArray("dependencies");
+    // Automatically add stdlib as a dependency, unless explicitly removed or
+    // replaced.
+    if (
+      !results.getBool("no-std") &&
+      !dep_roots.any(d -> d.startsWith("std=") || d == "std")
+    ) {
+      !dep_roots = dep_roots.concat(Array["std"])
+    };
+
+    direct_dependencies = dep_roots.map(v ->
+      if (v.contains("=")) v.splitFirst("=").i0 else v
+    );
+
+    // TODO: Filter out paths (`-L dependencies=/path/to/foo` vs `-L static=/...`).
+    dependencies = Sklib.Resolver::create(libraryPaths).resolve(
+      dep_roots,
+      target,
+    );
 
     disasmAll = results.getBool("disasm-all");
     disasmAnnotated = results.getBool("disasm-annotated");
@@ -78,11 +142,7 @@ private class Config{
     exportedAsFunctions = UnorderedSet::createFromItems(
       results.getArray("export-function-as"),
     );
-    output = results.maybeGetString("output").default("-");
     // profilePath = results.getString("profile-path");
-    emit = results.getString("emit");
-    target = results.maybeGetString("target").default(hostTarget());
-    optLevel = results.getString("opt-level").toInt();
     asan = results.getBool("asan");
     autogc = results.getBool("autogc");
     sampleRate = results.getString("sample-rate").toInt();
@@ -135,33 +195,19 @@ private class Config{
     ptrBitSize = ptrByteSize * 8;
     vtableByteSize = ptrByteSize;
 
-    basePath = Path.parentname(Path.dirname(Environ.current_exe()));
-    links = Environ.varOpt("SKC_LINK") match {
-    | Some(skcLink) if (!skcLink.trim().isEmpty()) ->
-      skcLink.split(Path.listSeparator).toArray()
-    | _ if (target.startsWith("wasm32")) ->
-      Array[Path.join(basePath, "lib", "libskip_runtime32.bc")]
-    | _ ->
-      // TODO: Link libbacktrace only when building with a debug/dev profile?
-      Array[
-        Path.join(basePath, "lib", "libskip_runtime64.a"),
-        Path.join(basePath, "lib", "libbacktrace.a"),
-        "-lpthread",
-      ]
-    };
     preambles = Environ.varOpt("SKC_PREAMBLE") match {
     | Some(skcPreamble) if (!skcPreamble.trim().isEmpty()) ->
       skcPreamble.split(Path.listSeparator).toArray()
-    | _ if (target.startsWith("wasm32")) ->
-      Array[Path.join(basePath, "lib", "skip_preamble32.ll")]
-    | _ -> Array[Path.join(basePath, "lib", "skip_preamble64.ll")]
+    | _ -> Array[]
     };
     static{
       release,
       verbose,
-      debug,
+      debug => debug_info,
       optConfig,
       unknown,
+      direct_dependencies,
+      dependencies,
       exportedFunctions,
       exportedAsFunctions => exportAs.chill(),
       disasmAll,
@@ -171,6 +217,7 @@ private class Config{
       output,
       // profilePath,
       emit,
+      lib_name,
       target,
       optLevel,
       asan,
@@ -184,7 +231,9 @@ private class Config{
       ptrByteSize,
       ptrBitSize,
       vtableByteSize,
-      links,
+      sysroot,
+      libraryPaths,
+      libraries,
       preambles,
     }
   }

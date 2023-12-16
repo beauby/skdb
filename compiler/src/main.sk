@@ -47,6 +47,12 @@ fun main(): void {
     .arg(Cli.StringArg("data"))
     .arg(Cli.StringArg("init"))
     .arg(Cli.BoolArg("check"))
+    .arg(Cli.StringArg("sklib-name").long("sklib-name"))
+    .arg(Cli.BoolArg("no-std").long("no-std"))
+    .arg(Cli.ArrayArg("dependencies").long("dep").default(Array[]))
+    .arg(Cli.StringArg("sysroot"))
+    .arg(Cli.ArrayArg("libraries").short("l").default(Array[]))
+    .arg(Cli.ArrayArg("library-paths").short("L").default(Array[]))
     .arg(Cli.ArrayArg("files").positional().default(Array[]))
     .parseArgs();
 
