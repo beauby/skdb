@@ -1,0 +1,372 @@
+module ARParser;
+
+const GLOBAL_HEADER: String = "!<arch>\n";
+const GLOBAL_HEADER_LEN: Int = (GLOBAL_HEADER : String).length();
+const ENTRY_HEADER_LEN: Int = 60;
+const ENTRY_IDENTIFIER_OFFSET: Int = 0;
+const ENTRY_IDENTIFIER_LEN: Int = 16;
+const ENTRY_MTIME_OFFSET: Int = 16;
+const ENTRY_MTIME_LEN: Int = 12;
+const ENTRY_UID_OFFSET: Int = 28;
+const ENTRY_UID_LEN: Int = 6;
+const ENTRY_GID_OFFSET: Int = 34;
+const ENTRY_GID_LEN: Int = 6;
+const ENTRY_MODE_OFFSET: Int = 40;
+const ENTRY_MODE_LEN: Int = 8;
+const ENTRY_SIZE_OFFSET: Int = 48;
+const ENTRY_SIZE_LEN: Int = 10;
+const ENTRY_HEADER_TERMINATOR_OFFSET: Int = 58;
+const ENTRY_HEADER_TERMINATOR_LEN: Int = 2;
+const ENTRY_HEADER_TERMINATOR: String = "`\n";
+
+const BSD_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF";
+const BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF SORTED";
+const BSD_EXTENDED_IDENTIFIER_PREFIX: String = "#1/";
+
+const GNU_SYMBOL_LOOKUP_TABLE_ID: String = "/";
+const GNU_NAME_TABLE_ID: String = "//";
+
+private class Header{
+  identifier: String,
+  size: Int,
+  mtime: Int = 0,
+  uid: Int = 0,
+  gid: Int = 0,
+  mode: Int = 0,
+} {
+  static fun read<R: mutable IO.Read>(reader: R): Result<?Header, Error> {
+    buf = Array::mfill(ENTRY_HEADER_LEN, UInt8::truncate(0));
+
+    reader.read(buf.mbytes()) match {
+    | Failure(err) -> return Failure(IOError(err))
+    | Success(nbytes) if (nbytes == 0) -> return Success(None())
+    | Success(nbytes) if (nbytes < ENTRY_HEADER_LEN) ->
+      reader.read_exact(buf.mbytes().mslice(nbytes)) match {
+      | Failure(err) -> return Failure(IOError(err))
+      | Success _ -> void
+      }
+    | Success _ -> void
+    };
+
+    identifier_raw = Vector::mcreateFromItems(
+      buf.slice(
+        ENTRY_IDENTIFIER_OFFSET,
+        ENTRY_IDENTIFIER_OFFSET + ENTRY_IDENTIFIER_LEN,
+      ),
+    );
+
+    while (identifier_raw.maybeLast() == Some(UInt8::truncate(0x20))) {
+      _ = identifier_raw.pop()
+    };
+
+    // TODO: Explicit ASCII check.
+    identifier = String::fromUtf8(identifier_raw.collect(Array));
+
+    size = parse_number(
+      buf.slice(ENTRY_SIZE_OFFSET, ENTRY_SIZE_OFFSET + ENTRY_SIZE_LEN),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    mtime = parse_number(
+      buf.slice(ENTRY_MTIME_OFFSET, ENTRY_MTIME_OFFSET + ENTRY_MTIME_LEN),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    uid = parse_number(
+      buf.slice(ENTRY_UID_OFFSET, ENTRY_UID_OFFSET + ENTRY_UID_LEN),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    gid = parse_number(
+      buf.slice(ENTRY_GID_OFFSET, ENTRY_GID_OFFSET + ENTRY_GID_LEN),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    mode = parse_number(
+      buf.slice(ENTRY_MODE_OFFSET, ENTRY_MODE_OFFSET + ENTRY_MODE_LEN),
+      8,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    // NOTE: The artifical `String` cast is required to circumvent a parser
+    // bug where `ENTRY_HEADER_TERMINATOR` gets parsed as a module name.
+    // TODO: Compare bytes directly once `Bytes` implements `==`.
+    terminator = buf.slice(
+      ENTRY_HEADER_TERMINATOR_OFFSET,
+      ENTRY_HEADER_TERMINATOR_OFFSET + ENTRY_HEADER_TERMINATOR_LEN,
+    );
+    if (
+      terminator != (ENTRY_HEADER_TERMINATOR : String).bytes().collect(Array)
+    ) {
+      return Failure(
+        ParseError(
+          `Unexpected entry header terminator tag ${terminator.bytes()}, expected ${(ENTRY_HEADER_TERMINATOR : String).bytes()}`,
+        ),
+      )
+    };
+
+    Success(Some(Header{identifier, mtime, uid, gid, mode, size}))
+  }
+}
+
+class HeaderAndLocation{header: Header, header_start: Int, data_start: Int}
+
+base class Variant {
+  children =
+  | VariantCommon()
+  | VariantBSD()
+  | VariantGNU()
+}
+
+mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
+  private reader: R,
+  mutable variant: Variant = VariantCommon(),
+  private headers: mutable Vector<HeaderAndLocation> = mutable Vector[],
+  private mutable next_entry_start: Int = GLOBAL_HEADER_LEN,
+  private name_table: mutable Vector<UInt8> = mutable Vector[],
+  private mutable symbol_table_header: ?HeaderAndLocation = None(),
+  private mutable started: Bool = false,
+  private mutable scanned: Bool = false,
+) {
+  static fun read(reader: R): Result<mutable Archive<R>, Error> {
+    ar = mutable Archive(reader);
+    ar.scan() match {
+    | Failure(err) -> return Failure(err)
+    | Success _ -> void
+    };
+
+    Success(ar)
+  }
+
+  mutable fun scan(): Result<void, Error> {
+    if (this.scanned) {
+      return Success(void)
+    };
+    this.parse_global_header() match {
+    | Failure(err) -> return Failure(err)
+    | Success _ -> void
+    };
+    loop {
+      header_start = this.next_entry_start;
+      header = Header::read(this.reader) match {
+      | Failure(err) -> return Failure(err)
+      | Success(None()) -> break void
+      | Success(Some(v)) -> v
+      };
+
+      header_len = ENTRY_HEADER_LEN;
+      if (
+        !(this.variant is VariantBSD _) &&
+        header.identifier.startsWith("/")
+      ) {
+        this.!variant = VariantGNU();
+        if (header.identifier == GNU_NAME_TABLE_ID) {
+          this.name_table.resize(header.size, UInt8::truncate(0));
+          this.reader.read_exact(this.name_table.mbytes()) match {
+          | Failure(err) -> return Failure(IOError(err))
+          | Success _ -> void
+          }
+        } else if (header.identifier != GNU_SYMBOL_LOOKUP_TABLE_ID) {
+          !header.identifier = this.parse_gnu_extended_identifier(
+            header,
+          ) match {
+          | Failure(err) -> return Failure(err)
+          | Success(v) -> v
+          }
+        }
+      } else if (
+        !(this.variant is VariantBSD _) &&
+        header.identifier.endsWith("/")
+      ) {
+        this.!variant = VariantGNU();
+        !header.identifier = header.identifier.stripSuffix("/")
+      } else if (
+        !(this.variant is VariantGNU _) &&
+        header.identifier.startsWith(BSD_EXTENDED_IDENTIFIER_PREFIX)
+      ) {
+        this.!variant = VariantBSD();
+        (
+          extended_identifier,
+          header_extra_len,
+        ) = this.parse_bsd_extended_identifier(header) match {
+        | Failure(err) -> return Failure(err)
+        | Success(v) -> v
+        };
+        !header.identifier = extended_identifier;
+        !header.size = header.size - header_extra_len;
+        !header_len = header_len + header_extra_len
+      };
+
+      this.!next_entry_start =
+        this.next_entry_start +
+        header_len +
+        header.size +
+        (header.size % 2);
+
+      if (this.is_name_table_id(header.identifier)) {
+        // NOTE: Skipping the following `seek()` because the extended name
+        // table was actually read.
+        continue
+      };
+
+      entry = HeaderAndLocation{
+        header,
+        header_start,
+        data_start => header_start + header_len,
+      };
+
+      if (this.is_symbol_lookup_table_id(header.identifier)) {
+        this.!symbol_table_header = Some(entry)
+      } else {
+        this.headers.push(entry)
+      };
+
+      this.reader.seek(IO.SeekFromStart(this.next_entry_start)) match {
+      | Failure(err) -> return Failure(IOError(err))
+      | Success _ -> void
+      }
+    };
+
+    this.!scanned = true;
+    Success(void)
+  }
+
+  private mutable fun parse_gnu_extended_identifier(
+    header: Header,
+  ): Result<String, Error> {
+    start = parse_number(
+      header.identifier
+        .bytes()
+        .slice(ENTRY_IDENTIFIER_OFFSET + 1, ENTRY_IDENTIFIER_LEN)
+        .collect(Array),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+
+    end = this.name_table.slice(start).findIndex(ch ->
+      ch == UInt8::truncate('/'.code()) || ch == UInt8::truncate(0)
+    ) match {
+    | Some(len) -> start + len
+    | None _ -> this.name_table.size()
+    };
+
+    // TODO: Explicit ASCII check.
+    identifier = String::fromUtf8(
+      this.name_table.slice(start, end).collect(Array),
+    );
+
+    Success(identifier)
+  }
+
+  private mutable fun parse_bsd_extended_identifier(
+    header: Header,
+  ): Result<(String, Int), Error> {
+    padded_len = parse_number(
+      header.identifier
+        .bytes()
+        .slice(ENTRY_IDENTIFIER_OFFSET + 3, ENTRY_IDENTIFIER_LEN)
+        .collect(Array),
+      10,
+    ) match {
+    | Failure(err) -> return Failure(err)
+    | Success(v) -> v
+    };
+    if (header.size < padded_len) {
+      return Failure(
+        ParseError(
+          `Entry size (${
+            header.size
+          }) smaller than extended entry identifier length (${padded_len})`,
+        ),
+      )
+    };
+
+    id_buf = Array::mfill(padded_len, UInt8::truncate(0));
+    this.reader.read_exact(id_buf.mbytes()) match {
+    | Failure(err) -> return Failure(IOError(err))
+    | Success _ -> void
+    };
+    id_raw = Vector::mcreateFromItems(id_buf);
+    while (id_raw.maybeLast() == Some(UInt8::truncate(0))) {
+      _ = id_raw.pop()
+    };
+    // TODO: Explicit ASCII check.
+    identifier = String::fromUtf8(id_raw.collect(Array));
+
+    Success((identifier, padded_len))
+  }
+
+  private readonly fun is_name_table_id(identifier: String): Bool {
+    this.variant is VariantGNU _ && identifier == GNU_NAME_TABLE_ID
+  }
+
+  private readonly fun is_symbol_lookup_table_id(identifier: String): Bool {
+    this.variant match {
+    | VariantCommon() -> false
+    | VariantBSD() ->
+      identifier == BSD_SYMBOL_LOOKUP_TABLE_ID ||
+        identifier == BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID
+    | VariantGNU() -> identifier == GNU_SYMBOL_LOOKUP_TABLE_ID
+    }
+  }
+
+  private mutable fun parse_global_header(): Result<void, Error> {
+    this.parse_fixed_tag(GLOBAL_HEADER) match {
+    | Failure(err) -> return Failure(err)
+    | Success _ -> void
+    };
+    this.!started = true;
+    Success(void)
+  }
+
+  private mutable fun parse_fixed_tag(tag: String): Result<void, Error> {
+    buf = Array<UInt8>::mfill(tag.length(), UInt8::truncate(0));
+    this.reader.read_exact(buf.mbytes()) match {
+    | Failure(err) -> return Failure(IOError(err))
+    | Success _ -> void
+    };
+    if (buf != tag.bytes().collect(Array)) {
+      Failure(ParseError(`Invalid tag ${buf.bytes()}, expected ${tag.bytes()}`))
+    } else {
+      Success(void)
+    }
+  }
+}
+
+private fun parse_number(
+  buf: readonly Array<UInt8>,
+  base: Int = 10,
+): Result<Int, Error> {
+  res = 0;
+  for (b in buf) {
+    if (b == UInt8::truncate(0x20)) break void;
+    digit = b.toInt() - 0x30;
+    if (digit < 0 || digit >= base) {
+      return Failure(
+        ParseError(
+          `Invalid padded integer ${buf.bytes()}, expected base-${base} integer`,
+        ),
+      )
+    };
+    !res = base * res + digit
+  };
+  Success(res)
+}
+
+module end;
