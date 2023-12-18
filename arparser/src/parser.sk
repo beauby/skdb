@@ -121,6 +121,17 @@ private class Header{
 
     Success(Some(Header{identifier, mtime, uid, gid, mode, size}))
   }
+
+  fun write<W: mutable IO.Write>(writer: W): Result<void, IO.Error> {
+    writer.write_all(
+      (this.identifier.padRight(ENTRY_IDENTIFIER_LEN) +
+        this.mtime.toString().padRight(ENTRY_MTIME_LEN) +
+        this.uid.toString().padRight(ENTRY_UID_LEN) +
+        this.gid.toString().padRight(ENTRY_GID_LEN) +
+        Chars.intToOctDigits(this.mode).padRight(ENTRY_MODE_LEN) +
+        this.size.toString().padRight(ENTRY_SIZE_LEN)).bytes(),
+    )
+  }
 }
 
 class HeaderAndLocation{header: Header, header_start: Int, data_start: Int}
@@ -152,6 +163,41 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     Success(ar)
   }
 
+  mutable fun get(name: String): Result<?readonly Bytes, IO.Error> {
+    for (entry in this.headers) {
+      if (entry.header.identifier == name) {
+        buf = Array::mfill(entry.header.size, UInt8::truncate(0));
+        this.reader.seek(IO.SeekFromStart(entry.data_start)) match {
+        | Failure(err) -> return Failure(err)
+        | Success _ -> void
+        };
+        this.reader.read_exact(buf.mbytes()) match {
+        | Failure(err) -> return Failure(err)
+        | Success _ -> void
+        };
+        return Success(Some(buf.bytes()))
+      }
+    };
+
+    Success(None())
+  }
+
+  mutable fun values(): mutable Iterator<Header> {
+    for (entry in this.headers) {
+      yield entry.header
+    }
+  }
+
+  mutable fun items(): mutable Iterator<(Header, readonly Bytes)> {
+    for (header in this) {
+      data = this.get(header.identifier) match {
+      | Success(Some(data)) -> data
+      | _ -> break void
+      };
+      yield (header, data)
+    }
+  }
+
   mutable fun scan(): Result<void, Error> {
     if (this.scanned) {
       return Success(void)
@@ -162,6 +208,12 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     };
     loop {
       header_start = this.next_entry_start;
+
+      this.reader.seek(IO.SeekFromStart(header_start)) match {
+      | Failure(err) -> return Failure(IOError(err))
+      | Success _ -> void
+      };
+
       header = Header::read(this.reader) match {
       | Failure(err) -> return Failure(err)
       | Success(None()) -> break void
@@ -218,8 +270,6 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
         (header.size % 2);
 
       if (this.is_name_table_id(header.identifier)) {
-        // NOTE: Skipping the following `seek()` because the extended name
-        // table was actually read.
         continue
       };
 
@@ -233,11 +283,6 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
         this.!symbol_table_header = Some(entry)
       } else {
         this.headers.push(entry)
-      };
-
-      this.reader.seek(IO.SeekFromStart(this.next_entry_start)) match {
-      | Failure(err) -> return Failure(IOError(err))
-      | Success _ -> void
       }
     };
 
@@ -346,6 +391,87 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     } else {
       Success(void)
     }
+  }
+}
+
+mutable class Builder<W: mutable IO.Write>(
+  writer: W,
+  mutable started: Bool = false,
+) {
+  static fun create(writer: W): mutable Builder<W> {
+    mutable Builder(writer)
+  }
+
+  mutable fun append<R: mutable IO.Read>(
+    header: Header,
+    data: R,
+  ): Result<void, IO.Error> {
+    if (!this.started) {
+      this.write_global_header() match {
+      | Failure(err) -> return Failure(err)
+      | Success _ -> void
+      }
+    };
+
+    // NOTE: BSD Variant only for now.
+    if (header.identifier.length() > 16 || header.identifier.contains(" ")) {
+      padding_len = (4 - (header.identifier.length() % 4)) % 4;
+      padded_len = header.identifier.length() + padding_len;
+
+      (header with {identifier => `#1/${padded_len}`}).write(
+        this.writer,
+      ) match {
+      | Failure(err) -> return Failure(err)
+      | Success _ -> void
+      };
+      this.writer.write_all(
+        header.identifier.padRight(padding_len, '\x00').bytes(),
+      ) match {
+      | Failure(err) -> return Failure(err)
+      | Success _ -> void
+      };
+    } else {
+      header.write(this.writer) match {
+      | Failure(err) -> return Failure(err)
+      | Success _ -> void
+      }
+    };
+
+    IO.copy(data, this.writer) match {
+    | Success(nbytes) if (nbytes == header.size) -> void
+    | Success(nbytes) -> // TODO: Proper Error
+      invariant_violation(`Header size mismatch (${nbytes} vs ${header.size}`)
+    | Failure(err) -> return Failure(err)
+    };
+
+    if (header.size % 2 != 0) {
+      this.writer.write_all("\n".bytes()) match {
+      | Failure(err) -> return Failure(err)
+      | Success _ -> void
+      }
+    };
+
+    Success(void)
+  }
+
+  mutable fun append_id(
+    identifier: String,
+    data: readonly Bytes,
+  ): Result<void, IO.Error> {
+    // TODO: Proper metadata API for files.
+    this.append(
+      Header{identifier, size => data.size()},
+      Bytes.Cursor::create(data),
+    )
+  }
+
+  private mutable fun write_global_header(): Result<void, IO.Error> {
+    this.writer.write_all((GLOBAL_HEADER : String).bytes()) match {
+    | Failure(err) -> return Failure(err)
+    | Success _ -> void
+    };
+    this.!started = true;
+    Success(void)
   }
 }
 

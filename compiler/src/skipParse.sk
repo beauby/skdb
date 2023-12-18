@@ -66,10 +66,26 @@ fun writeFiles(
     timeArr = fileTimeDir.unsafeGetArray(context, key);
     if (timeArr.size() > 0 && timeArr[0].value == lastModifTime) continue;
     fileTimeDir.writeArray(context, key, Array[SKStore.IntFile(lastModifTime)]);
+    contents = if (fileName.endsWith(".sk")) {
+      FileSystem.readTextFile(fileName)
+    } else if (fileName.endsWith(".sklib")) {
+      file = IO.File::open(fileName, IO.OpenOptions{read => true});
+      ar = mutable ARParser.Archive(file);
+      ar.get("src.sk") match {
+      | Success(None _) ->
+        "" // TODO: Does this work?
+      | Success(Some(buf)) -> String::fromUtf8(buf.collect(Array))
+      | Failure(err) -> // TODO: Proper exception
+        throw err
+      }
+    } else {
+      // TODO: Proper exception
+      invariant_violation(`Unrecognized extension: ${fileName}`)
+    };
     fileDir.writeArray(
       context,
       SKStore.SID(fileName),
-      Array[SKStore.StringFile(FileSystem.readTextFile(fileName))],
+      Array[SKStore.StringFile(contents)],
     )
   };
   for (fileName in oldFiles) {

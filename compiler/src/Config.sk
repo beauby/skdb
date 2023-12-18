@@ -12,10 +12,6 @@ private fun hostTarget(): String {
   "x86_64-pc-linux-gnu"
 }
 
-private fun defaultSysroot(): String {
-  invariant_violation("TODO")
-}
-
 private class Config{
   release: Bool,
   verbose: Bool,
@@ -49,7 +45,6 @@ private class Config{
   sysroot: String,
   libraries: Array<String>,
   libraryPaths: Array<String>,
-  dependencies: Array<String>,
   preambles: Array<String>,
 } {
   static fun make(results: Cli.ParseResults): this {
@@ -86,6 +81,10 @@ private class Config{
     output = results.maybeGetString("output").default("-");
     // profilePath = results.getString("profile-path");
     emit = results.getString("emit");
+    if (output.endsWith(".sklib")) {
+      // TODO: Check for inconsistencies between `-o foo.sklib` and `--emit`.
+      !emit = "sklib"
+    };
     target = results.maybeGetString("target").default(hostTarget());
     optLevel = results.getString("opt-level").toInt();
     asan = results.getBool("asan");
@@ -142,16 +141,17 @@ private class Config{
 
     basePath = Path.parentname(Path.dirname(Environ.current_exe()));
 
-    sysroot = results.maybeGetString("sysroot").default(defaultSysroot());
+    sysroot = results
+      .maybeGetString("sysroot")
+      .default(Path.join(basePath, "lib"));
     libraryPaths = results
       .getArray("library-paths")
       .concat(Array[sysroot])
       .collect(Array);
-    libraries = results.getArray("libraries");
-    dependencies = results.getArray("dependencies");
-
     // TODO: Allow control via `--no-std`.
-    !dependencies = dependencies.concat(Array["std"]).collect(Array);
+    libraries = Array["static=std"].concat(
+      results.getArray("libraries"),
+    ).collect(Array);
 
     preambles = Environ.varOpt("SKC_PREAMBLE") match {
     | Some(skcPreamble) if (!skcPreamble.trim().isEmpty()) ->
@@ -190,7 +190,6 @@ private class Config{
       sysroot,
       libraryPaths,
       libraries,
-      dependencies,
       preambles,
     }
   }
