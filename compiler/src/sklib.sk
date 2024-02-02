@@ -1,0 +1,106 @@
+// The Sklib format is a binary format for pre-compiled skip packages. It is a
+// simple ranlib archive, containing object files for possible extensions, as
+// well as metadata in JSON format (in the `metatadata.json` file), and skip
+// sources (in the `source.tar` file).
+// The `source.tar` file contains the skip source files of the package, stored
+// with their relative path from the `src/` directory of the package.
+
+module Sklib;
+
+// The `metadata.json` contains:
+// - dependencies (other sklibs, looked up during build)
+// - linker args
+class Metadata(dependencies: Array<String>, linkerArgs: Array<String>) {
+  fun serialize(): readonly Bytes {
+    JSON.Object[
+      "dependencies" => JSON.Array(
+        Vector::createFromItems(this.dependencies.map(s -> JSON.String(s))),
+      ),
+      "link" => JSON.Array(
+        Vector::createFromItems(this.linkerArgs.map(s -> JSON.String(s))),
+      ),
+    ]
+      .toString()
+      .bytes()
+  }
+
+  static fun read(bytes: readonly Bytes): Metadata {
+    // TODO: Proper reporting of parsing error.
+    json = JSON.decode(
+      String::fromUtf8(bytes.values().collect(Array)),
+    ).expectObject();
+    Metadata(
+      json["dependencies"]
+        .expectArray()
+        .value.map(s -> s.expectString())
+        .collect(Array),
+      json["link"]
+        .expectArray()
+        .value.map(s -> s.expectString())
+        .collect(Array),
+    );
+  }
+}
+
+// The Sklib class does not contain the possible object files present in the
+// archive as those are handled directly by the linker.
+class Sklib(sources: Map<String, String>, metadata: Metadata) {
+  static fun read(path: String): Result<Sklib, ARParser.Error> {
+    file = IO.File::open(path, IO.OpenOptions{read => true});
+    ar = ARParser.Archive::read(file) match {
+    | Success(ar) -> ar
+    | Failure(err) -> return Failure(err)
+    };
+    // TODO: Extract sources in memory instead of the current dirty hack that
+    // consists in concatenating all sources together into one single file.
+    // sources = TARParser.Archive::parse(ar["sources.tar"]);
+    sources = Map[
+      "sources.sk" => String::fromUtf8(
+        (ar["sources.sk"] match {
+        | Success(bytes) -> bytes
+        | Failure(err) -> return Failure(err)
+        } match {
+        | Some(bytes) -> bytes.values()
+        | None() -> "".bytes().values()
+        }).collect(Array),
+      ),
+    ];
+
+    res = Sklib(
+      sources,
+      Metadata::read(
+        (ar["metadata.json"] match {
+        | Success(bytes) -> bytes
+        | Failure(err) -> return Failure(err)
+        } match {
+        | Some(bytes) -> bytes
+        | None() -> "".bytes()
+        // TODO: Properly fail.
+        }),
+      ),
+    );
+    file.close();
+
+    Success(res)
+  }
+  // fun write(path: String): Result<void, IO.Error> {
+  //   writer = IO.File::open(
+  //     path,
+  //     IO.OpenOptions{read => true, write => true, create => true},
+  //   );
+  //   ar = ARParser.Builder::create(writer);
+  //   ar.append_id("metadata.json", this.metadata.serialize()) match {
+  //   | Success _ -> void
+  //   | Failure(err) -> return Failure(err)
+  //   };
+  //   for (name => src in this.sources) {
+  //     ar.append_id(name, src.bytes()) match {
+  //     | Success _ -> void
+  //     | Failure(err) -> return Failure(err)
+  //     }
+  //   };
+  //   Success(void)
+  // }
+}
+
+module end;
