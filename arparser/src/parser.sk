@@ -163,16 +163,16 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     Success(ar)
   }
 
-  mutable fun get(name: String): Result<?readonly Bytes, IO.Error> {
+  mutable fun get(name: String): Result<?readonly Bytes, IOError> {
     for (entry in this.headers) {
       if (entry.header.identifier == name) {
         buf = Array::mfill(entry.header.size, UInt8::truncate(0));
         this.reader.seek(IO.SeekFromStart(entry.data_start)) match {
-        | Failure(err) -> return Failure(err)
+        | Failure(err) -> return Failure(IOError(err))
         | Success _ -> void
         };
         this.reader.read_exact(buf.mbytes()) match {
-        | Failure(err) -> return Failure(err)
+        | Failure(err) -> return Failure(IOError(err))
         | Success _ -> void
         };
         return Success(Some(buf.bytes()))
