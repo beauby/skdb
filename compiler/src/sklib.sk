@@ -45,6 +45,9 @@ class Metadata(dependencies: Array<String>, linkerArgs: Array<String>) {
 // The Sklib class does not contain the possible object files present in the
 // archive as those are handled directly by the linker.
 class Sklib(sources: Map<String, String>, metadata: Metadata) {
+  const kSourcesFile: String = "sources.sk";
+  const kMetadataFile: String = "lib.skmeta";
+
   static fun read(path: String): Result<Sklib, ARParser.Error> {
     file = IO.File::open(path, IO.OpenOptions{read => true});
     ar = ARParser.Archive::read(file) match {
@@ -55,8 +58,8 @@ class Sklib(sources: Map<String, String>, metadata: Metadata) {
     // consists in concatenating all sources together into one single file.
     // sources = TARParser.Archive::parse(ar["sources.tar"]);
     sources = Map[
-      "sources.sk" => String::fromUtf8(
-        (ar["sources.sk"] match {
+      static::kSourcesFile => String::fromUtf8(
+        (ar[static::kSourcesFile] match {
         | Success(bytes) -> bytes
         | Failure(err) -> return Failure(err)
         } match {
@@ -69,7 +72,7 @@ class Sklib(sources: Map<String, String>, metadata: Metadata) {
     res = Sklib(
       sources,
       Metadata::read(
-        (ar["metadata.json"] match {
+        (ar[static::kMetadataFile] match {
         | Success(bytes) -> bytes
         | Failure(err) -> return Failure(err)
         } match {
