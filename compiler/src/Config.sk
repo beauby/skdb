@@ -17,7 +17,7 @@ private class Config{
   verbose: Bool,
   optConfig: Optimize.Config,
   unknown: Array<String>,
-  dependencies: Map<String, (String, Sklib.Metadata)>,
+  dependencies: Map<String, (String, Sklib.Metadata, Bool)>,
   exportedFunctions: UnorderedSet<String>,
   exportedAsFunctions: UnorderedMap<String, String>,
   disasmAll: Bool,

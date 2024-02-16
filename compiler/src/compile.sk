@@ -352,7 +352,7 @@ fun compile(
             sklib = Sklib::create(
               conf.libName.fromSome(),
               conf.target,
-              conf.dependencies,
+              conf.dependencies.map((_, v) -> (v.i0, v.i1)),
               linkerArgs,
               fileNames,
             );

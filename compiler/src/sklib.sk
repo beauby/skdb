@@ -187,7 +187,7 @@ class Resolver(sklibs: Map<String, Map<String, (String, Metadata)>>) {
   fun resolve(
     dependencies: Array<String>,
     target: String,
-  ): Map<String, (String, Metadata)> {
+  ): Map<String, (String, Metadata, Bool)> {
     resolved = mutable Map[];
 
     previous = mutable Vector[];
@@ -218,7 +218,7 @@ class Resolver(sklibs: Map<String, Map<String, (String, Metadata)>>) {
         (dep, path, metadata)
       };
 
-      previous.push((dep, path, metadata))
+      previous.push((dep, path, metadata, true))
     };
 
     // Recursively resolve indirect dependencies.
@@ -226,9 +226,9 @@ class Resolver(sklibs: Map<String, Map<String, (String, Metadata)>>) {
       if (previous.isEmpty()) break void;
 
       latest = mutable Vector[];
-      for ((name, path, metadata) in previous) {
+      for ((name, path, metadata, is_direct_dependency) in previous) {
         resolved.maybeGet(name) match {
-        | Some((other_path, other_metadata)) ->
+        | Some((other_path, other_metadata, _)) ->
           if (other_metadata.hash != metadata.hash) {
             print_error(
               `Failed to resolve ${name} (conflict between ${path} and ${other_path})`,
@@ -236,14 +236,14 @@ class Resolver(sklibs: Map<String, Map<String, (String, Metadata)>>) {
             skipExit(4)
           }
         | None() ->
-          resolved.add(name, (path, metadata));
+          resolved.add(name, (path, metadata, is_direct_dependency));
           latest.extend(
             metadata.dependencies.map(dep -> {
               (dep_name, dep_hash) = dep;
               (dep_path, dep_metadata) = this.resolve_single(dep_name, m ->
                 m.hash == dep_hash
               );
-              (dep_name, dep_path, dep_metadata)
+              (dep_name, dep_path, dep_metadata, false)
             }),
           )
         }
