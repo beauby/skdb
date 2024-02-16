@@ -1,27 +1,41 @@
 // The Sklib format is a binary format for pre-compiled skip packages. It is a
 // simple ranlib archive, containing object files for possible extensions, as
-// well as metadata in JSON format (in the `metatadata.json` file), and skip
-// sources (in the `source.tar` file).
+// well as metadata (in the `lib.skmeta` file), and skip sources.
 // The `source.tar` file contains the skip source files of the package, stored
 // with their relative path from the `src/` directory of the package.
 
 module Sklib;
 
-// The `metadata.json` contains:
-// - dependencies (other sklibs, looked up during build)
-// - linker args
-class Metadata(dependencies: Array<String>, linkerArgs: Array<String>) {
-  fun serialize(): readonly Bytes {
+class Metadata(
+  name: String,
+  target: String,
+  hash: String,
+  dependencies: Array<(String, String)>,
+  linkerArgs: Array<String>,
+) {
+  fun toJSON(): JSON.Object {
     JSON.Object[
+      "name" => JSON.String(this.name),
+      "target" => JSON.String(this.target),
+      "hash" => JSON.String(this.hash),
       "dependencies" => JSON.Array(
-        Vector::createFromItems(this.dependencies.map(s -> JSON.String(s))),
+        Vector::createFromItems(
+          this.dependencies.map(d ->
+            JSON.Object[
+              "name" => JSON.String(d.i0),
+              "hash" => JSON.String(d.i1),
+            ]
+          ),
+        ),
       ),
       "link" => JSON.Array(
         Vector::createFromItems(this.linkerArgs.map(s -> JSON.String(s))),
       ),
     ]
-      .toString()
-      .bytes()
+  }
+
+  fun serialize(): readonly Bytes {
+    this.toJSON().toString().bytes()
   }
 
   static fun read(bytes: readonly Bytes): Metadata {
@@ -30,9 +44,15 @@ class Metadata(dependencies: Array<String>, linkerArgs: Array<String>) {
       String::fromUtf8(bytes.values().collect(Array)),
     ).expectObject();
     Metadata(
+      json["name"].expectString(),
+      json["target"].expectString(),
+      json["hash"].expectString(),
       json["dependencies"]
         .expectArray()
-        .value.map(s -> s.expectString())
+        .value.map(o -> {
+          dep = o.expectObject();
+          (dep["name"].expectString(), dep["hash"].expectString())
+        })
         .collect(Array),
       json["link"]
         .expectArray()
@@ -44,8 +64,7 @@ class Metadata(dependencies: Array<String>, linkerArgs: Array<String>) {
 
 // The Sklib class does not contain the possible object files present in the
 // archive as those are handled directly by the linker.
-class Sklib(sources: Map<String, String>, metadata: Metadata) {
-  const kSourcesFile: String = "sources.sk";
+class .Sklib(sources: Map<String, String>, metadata: Metadata) {
   const kMetadataFile: String = "lib.skmeta";
 
   static fun read(path: String): Result<Sklib, ARParser.Error> {
@@ -54,56 +73,206 @@ class Sklib(sources: Map<String, String>, metadata: Metadata) {
     | Success(ar) -> ar
     | Failure(err) -> return Failure(err)
     };
-    // TODO: Extract sources in memory instead of the current dirty hack that
-    // consists in concatenating all sources together into one single file.
-    // sources = TARParser.Archive::parse(ar["sources.tar"]);
-    sources = Map[
-      static::kSourcesFile => String::fromUtf8(
-        (ar[static::kSourcesFile] match {
-        | Success(bytes) -> bytes
-        | Failure(err) -> return Failure(err)
-        } match {
-        | Some(bytes) -> bytes.values()
-        | None() -> "".bytes().values()
-        }).collect(Array),
-      ),
-    ];
 
-    res = Sklib(
-      sources,
-      Metadata::read(
-        (ar[static::kMetadataFile] match {
-        | Success(bytes) -> bytes
-        | Failure(err) -> return Failure(err)
-        } match {
-        | Some(bytes) -> bytes
-        | None() -> "".bytes()
-        // TODO: Properly fail.
-        }),
-      ),
+    sources = mutable Map[];
+    for ((header, data) in ar.items()) {
+      if (!header.identifier.endsWith(".sk")) continue;
+
+      sources.set(
+        header.identifier.replace("#", "/"),
+        String::fromUtf8(data.values().collect(Array)),
+      )
+    };
+
+    metadata = Metadata::read(
+      (ar[static::kMetadataFile] match {
+      | Success(bytes) -> bytes
+      | Failure(err) -> return Failure(err)
+      } match {
+      | Some(bytes) -> bytes
+      | None() -> "".bytes()
+      // TODO: Properly fail.
+      }),
+    );
+
+    file.close();
+
+    Success(Sklib(sources.chill(), metadata))
+  }
+
+  static fun read_metadata(path: String): Result<Metadata, ARParser.Error> {
+    file = IO.File::open(path, IO.OpenOptions{read => true});
+    ar = ARParser.Archive::read(file) match {
+    | Success(ar) -> ar
+    | Failure(err) -> return Failure(err)
+    };
+    res = Metadata::read(
+      (ar[static::kMetadataFile] match {
+      | Success(bytes) -> bytes
+      | Failure(err) -> return Failure(err)
+      } match {
+      | Some(bytes) -> bytes
+      | None() -> "".bytes()
+      // TODO: Properly fail.
+      }),
     );
     file.close();
 
     Success(res)
   }
-  // fun write(path: String): Result<void, IO.Error> {
-  //   writer = IO.File::open(
-  //     path,
-  //     IO.OpenOptions{read => true, write => true, create => true},
-  //   );
-  //   ar = ARParser.Builder::create(writer);
-  //   ar.append_id("metadata.json", this.metadata.serialize()) match {
-  //   | Success _ -> void
-  //   | Failure(err) -> return Failure(err)
-  //   };
-  //   for (name => src in this.sources) {
-  //     ar.append_id(name, src.bytes()) match {
-  //     | Success _ -> void
-  //     | Failure(err) -> return Failure(err)
-  //     }
-  //   };
-  //   Success(void)
-  // }
+
+  static fun create(
+    name: String,
+    target: String,
+    dependencies: Map<String, (String, Metadata)>,
+    linkerArgs: Array<String>,
+    sources: Array<String>,
+  ): Sklib {
+    hash = static::hash(name, target, dependencies, linkerArgs, sources);
+    metadata = Metadata(
+      name,
+      target,
+      hash,
+      dependencies.map((_, v) -> v.i1.hash).items().collect(Array),
+      linkerArgs,
+    );
+
+    Sklib(
+      Map::createFromItems(
+        sources.map(fn -> (fn, FileSystem.readTextFile(fn))),
+      ),
+      metadata,
+    )
+  }
+
+  static fun hash(
+    _name: String,
+    _target: String,
+    _dependencies: Map<String, (String, Metadata)>,
+    _linkerArgs: Array<String>,
+    _sources: Array<String>,
+  ): String {
+    // TODO: Digest everything, including compiler version.
+    "TODO"
+  }
+}
+
+class Resolver(sklibs: Map<String, Map<String, (String, Metadata)>>) {
+  static fun create(paths: Array<String>): Resolver {
+    sklibs = mutable Map[];
+    for (p in paths) {
+      !p = FileSystem.realpath(p);
+      for (f in FileSystem.readDirectory(p)) {
+        if (!f.endsWith(".sklib")) {
+          continue
+        };
+
+        path = Path.join(p, f);
+        metadata = Sklib::read_metadata(path) match {
+        | Success(metadata) -> metadata
+        | Failure(err) ->
+          print_error(`Failed to read metadata for ${path}: ${err}`);
+          // TODO: Does 4 make sense here?
+          skipExit(4)
+        };
+        _ = sklibs
+          .getOrAdd(metadata.name, () -> mutable Map[])
+          .maybeSet(metadata.hash, (path, metadata));
+      }
+    };
+
+    Resolver(sklibs.map((_, v) -> v.chill()))
+  }
+
+  fun resolve(
+    dependencies: Array<String>,
+    target: String,
+  ): Map<String, (String, Metadata)> {
+    resolved = mutable Map[];
+
+    previous = mutable Vector[];
+
+    // Resolve direct dependencies.
+    for (dep in dependencies) {
+      (!dep, path, metadata) = if (dep.contains("=")) {
+        // TODO: Ensure the given sklib exists and matches (name and target)
+        (name, path) = dep.splitFirst("=");
+        !path = FileSystem.realpath(path);
+        metadata = Sklib::read_metadata(path) match {
+        | Success(metadata) -> metadata
+        | Failure(err) ->
+          print_error(`Failed to read metadata for ${path}: ${err}`);
+          skipExit(4)
+        };
+        if (metadata.target != target) {
+          print_error(`Failed to resolve ${name} (target mismatch)`);
+          skipExit(4)
+        };
+        if (metadata.name != name) {
+          print_error(`Failed to resolve ${name} (name mismatch)`);
+          skipExit(4)
+        };
+        (name, path, metadata)
+      } else {
+        (path, metadata) = this.resolve_single(dep, m -> m.target == target);
+        (dep, path, metadata)
+      };
+
+      previous.push((dep, path, metadata))
+    };
+
+    // Recursively resolve indirect dependencies.
+    loop {
+      if (previous.isEmpty()) break void;
+
+      latest = mutable Vector[];
+      for ((name, path, metadata) in previous) {
+        resolved.maybeGet(name) match {
+        | Some((other_path, other_metadata)) ->
+          if (other_metadata.hash != metadata.hash) {
+            print_error(
+              `Failed to resolve ${name} (conflict between ${path} and ${other_path})`,
+            );
+            skipExit(4)
+          }
+        | None() ->
+          resolved.add(name, (path, metadata));
+          latest.extend(
+            metadata.dependencies.map(dep -> {
+              (dep_name, dep_hash) = dep;
+              (dep_path, dep_metadata) = this.resolve_single(dep_name, m ->
+                m.hash == dep_hash
+              );
+              (dep_name, dep_path, dep_metadata)
+            }),
+          )
+        }
+      };
+      !previous = latest
+    };
+
+    resolved.chill()
+  }
+
+  private fun resolve_single(
+    dependency: String,
+    pred: (Metadata) -> Bool,
+  ): (String, Metadata) {
+    candidates = this.sklibs.maybeGet(dependency) match {
+    | Some(candidates) -> candidates
+    | None() ->
+      print_error(`Failed to resolve dependency ${dependency}`);
+      skipExit(4)
+    };
+
+    for ((path, metadata) in candidates.values()) {
+      // TODO: Take compile options into account.
+      if (pred(metadata)) return (path, metadata)
+    };
+
+    print_error(`Failed to resolved dependency ${dependency}`);
+    skipExit(4)
+  }
 }
 
 module end;

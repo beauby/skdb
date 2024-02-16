@@ -1,30 +1,30 @@
 module ARParser;
 
-const GLOBAL_HEADER: String = "!<arch>\n";
-const GLOBAL_HEADER_LEN: Int = (GLOBAL_HEADER : String).length();
-const ENTRY_HEADER_LEN: Int = 60;
-const ENTRY_IDENTIFIER_OFFSET: Int = 0;
-const ENTRY_IDENTIFIER_LEN: Int = 16;
-const ENTRY_MTIME_OFFSET: Int = 16;
-const ENTRY_MTIME_LEN: Int = 12;
-const ENTRY_UID_OFFSET: Int = 28;
-const ENTRY_UID_LEN: Int = 6;
-const ENTRY_GID_OFFSET: Int = 34;
-const ENTRY_GID_LEN: Int = 6;
-const ENTRY_MODE_OFFSET: Int = 40;
-const ENTRY_MODE_LEN: Int = 8;
-const ENTRY_SIZE_OFFSET: Int = 48;
-const ENTRY_SIZE_LEN: Int = 10;
-const ENTRY_HEADER_TERMINATOR_OFFSET: Int = 58;
-const ENTRY_HEADER_TERMINATOR_LEN: Int = 2;
-const ENTRY_HEADER_TERMINATOR: String = "`\n";
+const kGLOBAL_HEADER: String = "!<arch>\n";
+const kGLOBAL_HEADER_LEN: Int = kGLOBAL_HEADER.length();
+const kENTRY_HEADER_LEN: Int = 60;
+const kENTRY_IDENTIFIER_OFFSET: Int = 0;
+const kENTRY_IDENTIFIER_LEN: Int = 16;
+const kENTRY_MTIME_OFFSET: Int = 16;
+const kENTRY_MTIME_LEN: Int = 12;
+const kENTRY_UID_OFFSET: Int = 28;
+const kENTRY_UID_LEN: Int = 6;
+const kENTRY_GID_OFFSET: Int = 34;
+const kENTRY_GID_LEN: Int = 6;
+const kENTRY_MODE_OFFSET: Int = 40;
+const kENTRY_MODE_LEN: Int = 8;
+const kENTRY_SIZE_OFFSET: Int = 48;
+const kENTRY_SIZE_LEN: Int = 10;
+const kENTRY_HEADER_TERMINATOR_OFFSET: Int = 58;
+const kENTRY_HEADER_TERMINATOR_LEN: Int = 2;
+const kENTRY_HEADER_TERMINATOR: String = "`\n";
 
-const BSD_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF";
-const BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF SORTED";
-const BSD_EXTENDED_IDENTIFIER_PREFIX: String = "#1/";
+const kBSD_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF";
+const kBSD_SORTED_SYMBOL_LOOKUP_TABLE_ID: String = "__.SYMDEF SORTED";
+const kBSD_EXTENDED_IDENTIFIER_PREFIX: String = "#1/";
 
-const GNU_SYMBOL_LOOKUP_TABLE_ID: String = "/";
-const GNU_NAME_TABLE_ID: String = "//";
+const kGNU_SYMBOL_LOOKUP_TABLE_ID: String = "/";
+const kGNU_NAME_TABLE_ID: String = "//";
 
 private class Header{
   identifier: String,
@@ -35,12 +35,12 @@ private class Header{
   mode: Int = 0,
 } {
   static fun read<R: mutable IO.Read>(reader: R): Result<?Header, Error> {
-    buf = Array::mfill(ENTRY_HEADER_LEN, UInt8::truncate(0));
+    buf = Array::mfill(kENTRY_HEADER_LEN, UInt8::truncate(0));
 
     reader.read(buf.mbytes()) match {
     | Failure(err) -> return Failure(IOError(err))
     | Success(nbytes) if (nbytes == 0) -> return Success(None())
-    | Success(nbytes) if (nbytes < ENTRY_HEADER_LEN) ->
+    | Success(nbytes) if (nbytes < kENTRY_HEADER_LEN) ->
       reader.read_exact(buf.mbytes().mslice(nbytes)) match {
       | Failure(err) -> return Failure(IOError(err))
       | Success _ -> void
@@ -50,8 +50,8 @@ private class Header{
 
     identifier_raw = Vector::mcreateFromItems(
       buf.slice(
-        ENTRY_IDENTIFIER_OFFSET,
-        ENTRY_IDENTIFIER_OFFSET + ENTRY_IDENTIFIER_LEN,
+        kENTRY_IDENTIFIER_OFFSET,
+        kENTRY_IDENTIFIER_OFFSET + kENTRY_IDENTIFIER_LEN,
       ),
     );
 
@@ -63,7 +63,7 @@ private class Header{
     identifier = String::fromUtf8(identifier_raw.collect(Array));
 
     size = parse_number(
-      buf.slice(ENTRY_SIZE_OFFSET, ENTRY_SIZE_OFFSET + ENTRY_SIZE_LEN),
+      buf.slice(kENTRY_SIZE_OFFSET, kENTRY_SIZE_OFFSET + kENTRY_SIZE_LEN),
       10,
     ) match {
     | Failure(err) -> return Failure(err)
@@ -71,7 +71,7 @@ private class Header{
     };
 
     mtime = parse_number(
-      buf.slice(ENTRY_MTIME_OFFSET, ENTRY_MTIME_OFFSET + ENTRY_MTIME_LEN),
+      buf.slice(kENTRY_MTIME_OFFSET, kENTRY_MTIME_OFFSET + kENTRY_MTIME_LEN),
       10,
     ) match {
     | Failure(err) -> return Failure(err)
@@ -79,7 +79,7 @@ private class Header{
     };
 
     uid = parse_number(
-      buf.slice(ENTRY_UID_OFFSET, ENTRY_UID_OFFSET + ENTRY_UID_LEN),
+      buf.slice(kENTRY_UID_OFFSET, kENTRY_UID_OFFSET + kENTRY_UID_LEN),
       10,
     ) match {
     | Failure(err) -> return Failure(err)
@@ -87,7 +87,7 @@ private class Header{
     };
 
     gid = parse_number(
-      buf.slice(ENTRY_GID_OFFSET, ENTRY_GID_OFFSET + ENTRY_GID_LEN),
+      buf.slice(kENTRY_GID_OFFSET, kENTRY_GID_OFFSET + kENTRY_GID_LEN),
       10,
     ) match {
     | Failure(err) -> return Failure(err)
@@ -95,7 +95,7 @@ private class Header{
     };
 
     mode = parse_number(
-      buf.slice(ENTRY_MODE_OFFSET, ENTRY_MODE_OFFSET + ENTRY_MODE_LEN),
+      buf.slice(kENTRY_MODE_OFFSET, kENTRY_MODE_OFFSET + kENTRY_MODE_LEN),
       8,
     ) match {
     | Failure(err) -> return Failure(err)
@@ -106,15 +106,13 @@ private class Header{
     // bug where `ENTRY_HEADER_TERMINATOR` gets parsed as a module name.
     // TODO: Compare bytes directly once `Bytes` implements `==`.
     terminator = buf.slice(
-      ENTRY_HEADER_TERMINATOR_OFFSET,
-      ENTRY_HEADER_TERMINATOR_OFFSET + ENTRY_HEADER_TERMINATOR_LEN,
+      kENTRY_HEADER_TERMINATOR_OFFSET,
+      kENTRY_HEADER_TERMINATOR_OFFSET + kENTRY_HEADER_TERMINATOR_LEN,
     );
-    if (
-      terminator != (ENTRY_HEADER_TERMINATOR : String).bytes().collect(Array)
-    ) {
+    if (terminator != kENTRY_HEADER_TERMINATOR.bytes().collect(Array)) {
       return Failure(
         ParseError(
-          `Unexpected entry header terminator tag ${terminator.bytes()}, expected ${(ENTRY_HEADER_TERMINATOR : String).bytes()}`,
+          `Unexpected entry header terminator tag ${terminator.bytes()}, expected ${kENTRY_HEADER_TERMINATOR.bytes()}`,
         ),
       )
     };
@@ -124,12 +122,12 @@ private class Header{
 
   fun write<W: mutable IO.Write>(writer: W): Result<void, IO.Error> {
     writer.write_all(
-      (this.identifier.padRight(ENTRY_IDENTIFIER_LEN) +
-        this.mtime.toString().padRight(ENTRY_MTIME_LEN) +
-        this.uid.toString().padRight(ENTRY_UID_LEN) +
-        this.gid.toString().padRight(ENTRY_GID_LEN) +
-        Chars.intToOctDigits(this.mode).padRight(ENTRY_MODE_LEN) +
-        this.size.toString().padRight(ENTRY_SIZE_LEN)).bytes(),
+      (this.identifier.padRight(kENTRY_IDENTIFIER_LEN) +
+        this.mtime.toString().padRight(kENTRY_MTIME_LEN) +
+        this.uid.toString().padRight(kENTRY_UID_LEN) +
+        this.gid.toString().padRight(kENTRY_GID_LEN) +
+        Chars.intToOctDigits(this.mode).padRight(kENTRY_MODE_LEN) +
+        this.size.toString().padRight(kENTRY_SIZE_LEN)).bytes(),
     )
   }
 }
@@ -147,7 +145,7 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
   private reader: R,
   mutable variant: Variant = VariantCommon(),
   private headers: mutable Vector<HeaderAndLocation> = mutable Vector[],
-  private mutable next_entry_start: Int = GLOBAL_HEADER_LEN,
+  private mutable next_entry_start: Int = kGLOBAL_HEADER_LEN,
   private name_table: mutable Vector<UInt8> = mutable Vector[],
   private mutable symbol_table_header: ?HeaderAndLocation = None(),
   private mutable started: Bool = false,
@@ -220,19 +218,19 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
       | Success(Some(v)) -> v
       };
 
-      header_len = ENTRY_HEADER_LEN;
+      header_len = kENTRY_HEADER_LEN;
       if (
         !(this.variant is VariantBSD _) &&
         header.identifier.startsWith("/")
       ) {
         this.!variant = VariantGNU();
-        if (header.identifier == GNU_NAME_TABLE_ID) {
+        if (header.identifier == kGNU_NAME_TABLE_ID) {
           this.name_table.resize(header.size, UInt8::truncate(0));
           this.reader.read_exact(this.name_table.mbytes()) match {
           | Failure(err) -> return Failure(IOError(err))
           | Success _ -> void
           }
-        } else if (header.identifier != GNU_SYMBOL_LOOKUP_TABLE_ID) {
+        } else if (header.identifier != kGNU_SYMBOL_LOOKUP_TABLE_ID) {
           !header.identifier = this.parse_gnu_extended_identifier(
             header,
           ) match {
@@ -248,7 +246,7 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
         !header.identifier = header.identifier.stripSuffix("/")
       } else if (
         !(this.variant is VariantGNU _) &&
-        header.identifier.startsWith(BSD_EXTENDED_IDENTIFIER_PREFIX)
+        header.identifier.startsWith(kBSD_EXTENDED_IDENTIFIER_PREFIX)
       ) {
         this.!variant = VariantBSD();
         (
@@ -296,7 +294,7 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     start = parse_number(
       header.identifier
         .bytes()
-        .slice(ENTRY_IDENTIFIER_OFFSET + 1, ENTRY_IDENTIFIER_LEN)
+        .slice(kENTRY_IDENTIFIER_OFFSET + 1, kENTRY_IDENTIFIER_LEN)
         .collect(Array),
       10,
     ) match {
@@ -325,7 +323,7 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
     padded_len = parse_number(
       header.identifier
         .bytes()
-        .slice(ENTRY_IDENTIFIER_OFFSET + 3, ENTRY_IDENTIFIER_LEN)
+        .slice(kENTRY_IDENTIFIER_OFFSET + 3, kENTRY_IDENTIFIER_LEN)
         .collect(Array),
       10,
     ) match {
@@ -358,21 +356,21 @@ mutable class Archive<R: mutable IO.Read & mutable IO.Seek>(
   }
 
   private readonly fun is_name_table_id(identifier: String): Bool {
-    this.variant is VariantGNU _ && identifier == GNU_NAME_TABLE_ID
+    this.variant is VariantGNU _ && identifier == kGNU_NAME_TABLE_ID
   }
 
   private readonly fun is_symbol_lookup_table_id(identifier: String): Bool {
     this.variant match {
     | VariantCommon() -> false
     | VariantBSD() ->
-      identifier == BSD_SYMBOL_LOOKUP_TABLE_ID ||
-        identifier == BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID
-    | VariantGNU() -> identifier == GNU_SYMBOL_LOOKUP_TABLE_ID
+      identifier == kBSD_SYMBOL_LOOKUP_TABLE_ID ||
+        identifier == kBSD_SORTED_SYMBOL_LOOKUP_TABLE_ID
+    | VariantGNU() -> identifier == kGNU_SYMBOL_LOOKUP_TABLE_ID
     }
   }
 
   private mutable fun parse_global_header(): Result<void, Error> {
-    this.parse_fixed_tag(GLOBAL_HEADER) match {
+    this.parse_fixed_tag(kGLOBAL_HEADER) match {
     | Failure(err) -> return Failure(err)
     | Success _ -> void
     };
@@ -466,7 +464,7 @@ mutable class Builder<W: mutable IO.Write>(
   }
 
   private mutable fun write_global_header(): Result<void, IO.Error> {
-    this.writer.write_all((GLOBAL_HEADER : String).bytes()) match {
+    this.writer.write_all(kGLOBAL_HEADER.bytes()) match {
     | Failure(err) -> return Failure(err)
     | Success _ -> void
     };

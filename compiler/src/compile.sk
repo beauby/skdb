@@ -172,41 +172,16 @@ fun ensureCompatibleLLVMVersion(): void {
 
 class TickConfigFile(value: (Int, Config.Config)) extends SKStore.File
 
-// TODO: Hashes in the precompiled libraries filenames.
-fun resolveDependency(dep: String, paths: Array<String>): String {
-  if (dep.contains("=")) {
-    // TODO: Verify the provided path.
-    candidate = dep.splitFirst("=").i1;
+fun resolveStaticLibrary(name: String, libraryPaths: Sequence<String>): String {
+  // TODO: Support paths starting with `static=`.
+  for (path in libraryPaths) {
+    candidate = Path.join(path, `lib${name}.a`);
     if (FileSystem.exists(candidate)) {
-      return candidate
+      break candidate
     }
   } else {
-    for (path in paths) {
-      candidate = Path.join(path, dep + ".sklib");
-      if (FileSystem.exists(candidate)) {
-        return candidate
-      }
-    }
-  };
-
-  // TODO: Proper exception.
-  invariant_violation(`Dependency not found ${dep}`)
-}
-
-fun resolveStaticLibrary(lib: String, libraryPaths: Sequence<String>): String {
-  // Explicit path.
-  if (lib.contains("/")) {
-    lib
-  } else {
-    // TODO: Keep only paths starting with `static=`.
-    for (path in libraryPaths) {
-      if (FileSystem.exists(Path.join(path, lib))) {
-        break Path.join(path, lib)
-      }
-    } else {
-      // TODO: Proper error.
-      invariant_violation(`Could not find library ${lib}`)
-    }
+    print_error(`Could not find lib${name}.a`);
+    skipExit(2)
   }
 }
 
@@ -230,7 +205,14 @@ fun compile(
     _ = context.mkdir(x ~> x, x ~> x, FileCache.allFilesDirName, Array[]);
   };
 
-  FileCache.writeFiles(context, fileNames.concat(dependencies).collect(Array));
+  FileCache.writeFiles(
+    context,
+    fileNames,
+    config.dependencies.values().map(x -> x.i0).collect(Array),
+    if (config.emit == "sklib") Some(FileSystem.realpath(config.output)) else {
+      None()
+    },
+  );
 
   backendDirName = SKStore.DirName::create("/backend/");
   backendSinkDirName = SKStore.DirName::create("/backendSink/");
@@ -343,71 +325,88 @@ fun compile(
           })
         | "sklib" ->
           runCompilerPhase("native/write_sklib", () -> {
+            // NOTE: The "static=" directive tells `skc` to bundle the corresponding
+            // archive into the `sklib`, while other libraries (including static system
+            // libraries) are left for the llvm linker to resolve and link.
+            static_libs = mutable Vector[];
+            other_libs = mutable Vector[];
+            for (lib in conf.libraries) {
+              if (lib.startsWith("static=")) {
+                static_libs.push(
+                  resolveStaticLibrary(
+                    lib.stripPrefix("static="),
+                    config.libraryPaths,
+                  ),
+                )
+              } else {
+                other_libs.push(lib);
+              }
+            };
+
+            // TODO: Filter out `-L native=/foo/bar` if/when we support it.
+            linkerArgs = conf.libraryPaths
+              .map(x -> `-L${x}`)
+              .collect(Array)
+              .concat(other_libs.map(x -> `-l${x}`).collect(Array));
+
+            sklib = Sklib::create(
+              conf.libName.fromSome(),
+              conf.target,
+              conf.dependencies,
+              linkerArgs,
+              fileNames,
+            );
+
             ar_file = IO.File::open(
               conf.output,
               IO.OpenOptions{write => true, create => true, create_new => true},
             );
             ar = ARParser.Builder::create(ar_file);
-            // Add concatenated skip sources as `src.sk`.
+
+            // Write metadata file.
             ar.append_id(
-              "src.sk",
-              // TODO: In-memory concatenation could be avoided.
-              fileNames
-                .map(path -> FileSystem.readTextFile(path))
-                .join("")
-                .bytes(),
+              Sklib::kMetadataFile,
+              sklib.metadata.serialize(),
             ) match {
-            | Failure(err) -> throw err
+            | Failure(err) ->
+              print_error(`Failed to write metadata to ${conf.output}: ${err}`);
+              skipExit(2)
             | Success _ -> void
             };
 
-            // Add metadata file (text file containing -L/-l options).
-            // NOTE: The "static=" directive tells `skc` to bundle the corresponding
-            // archive into the `sklib`, while other libraries (including static system
-            // libraries) are left for the llvm linker to resolve and link.
-            static_libs = mutable Vector[];
-            skip_libs = mutable Vector[];
-            other_libs = mutable Vector[];
-            for (l in conf.libraries) {
-              if (l.startsWith("static=")) {
-                static_libs.push(resolveDependency(l.stripPrefix("static=")))
-              } else if (l.startsWith("skip=")) {
-                skip_libs.push(resolveDependency(l.stripPrefix("skip=")))
-              } else {
-                other_libs.push(l);
-              }
-            };
-            ar.append_id(
-              "lib.skmeta",
-              // TODO: Proper serialization format.
-              // Currently the format is: link line first, then one line per .sklib.
-              (other_libs
-                .map(x -> `-l${x}`)
-                .collect(Array)
-                // TODO: Filter out `-L static=/foo/bar` if/when we support it.
-                .concat(conf.libraryPaths.map(x -> `-L${x}`))
-                .join(" ") +
-                "\n" +
-                skip_libs.join("\n")).bytes(),
-            ) match {
-            | Failure(err) -> throw err
-            | Success _ -> void
+            // Write skip sources.
+            for (fn in fileNames) {
+              // TODO: Ensure "#" doesn't break ranlib format.
+              // TODO: Properly set last modified time.
+              ar.append_id(
+                fn.replace("/", "#"),
+                FileSystem.readTextFile(fn).bytes(),
+              ) match {
+              | Failure(err) ->
+                print_error(`Failed to write to ${conf.output}: ${err}`);
+                skipExit(2)
+              | Success _ -> void
+              };
             };
 
             // For each `-l static=foo.a`, dump .o files from `foo.a` into the sklib.
-            for (lib in static_libs) {
-              lib_path = resolveStaticLibrary(lib, config.libraryPaths);
+            for (lib_path in static_libs) {
               lib_file = IO.File::open(lib_path, IO.OpenOptions{read => true});
               lib_ar = ARParser.Archive::read(lib_file) match {
               | Success(v) -> v
-              | Failure(err) -> throw err
+              | Failure(err) ->
+                print_error(`Failed to read ${lib_path}: ${err}`);
+                skipExit(2)
               };
               for ((obj_file_header, obj_file) in lib_ar.items()) {
+                // TODO: Make sure no other files are being copied.
                 ar.append(
                   obj_file_header,
                   Bytes.Cursor::create(obj_file),
                 ) match {
-                | Failure(err) -> throw err
+                | Failure(err) ->
+                  print_error(`Failed to write to sklib: ${err}`);
+                  skipExit(2)
                 | Success _ -> void
                 }
               };
