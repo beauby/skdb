@@ -46,6 +46,12 @@ fun link(
   config: Config.Config,
   exports: Array<String> = Array[],
 ): void {
+  linker_args = config.dependencies
+    .values()
+    .collect(Array)
+    .flatMap(x -> x.i1.linkerArgs)
+    .collect(Array);
+  static_libs = config.dependencies.values().map(x -> x.i0).collect(Array);
   if (config.isWasm()) {
     output = config.output;
     bcFile = output + ".bc";
@@ -108,7 +114,9 @@ fun link(
         output,
         "--no-entry",
         "-allow-undefined",
-      ].concat(exportJs),
+      ].concat(exportJs)
+        .concat(linker_args)
+        .concat(static_libs),
       config.verbose,
     );
   } else {
@@ -122,9 +130,7 @@ fun link(
         "-o",
         config.output,
         llFile,
-      ].concat(config.libraries.map(x -> `-l${x}`)).concat(
-        config.libraryPaths.map(x -> `-L ${x}`),
-      ),
+      ].concat(linker_args).concat(static_libs),
       config.verbose,
     );
   }

@@ -65,6 +65,40 @@ private class Config{
     verbose = results.getBool("verbose");
     // preserve legacy behavior of capturing all unmatched args in a single array
     unknown = results.getArray("files");
+    emit = results.getString("emit");
+    output = results.maybeGetString("output").default("-");
+    target = results.maybeGetString("target").default(hostTarget());
+    optLevel = results.getString("opt-level").toInt();
+    if (output.endsWith(".sklib")) {
+      // TODO: Check for inconsistencies between `-o foo.sklib` and `--emit`.
+      !emit = "sklib"
+    };
+    if (emit == "sklib" && results.maybeGetString("sklib-name") is None _) {
+      print_error(`The '--sklib-name' flag is required to build an sklib.`);
+      skipExit(2)
+    };
+
+    basePath = Path.parentname(Path.dirname(Environ.current_exe()));
+
+    sysroot = results
+      .maybeGetString("sysroot")
+      .default(Path.join(basePath, "lib"));
+    libraryPaths = results
+      .getArray("library-paths")
+      .concat(Array[sysroot])
+      .collect(Array);
+    libraries = results.getArray("libraries");
+    if (!libraries.isEmpty() && emit != "sklib") {
+      print_error("The flag -l is only allowed with --emit=sklib");
+      skipExit(2)
+    };
+
+    dependencies = Sklib.Resolver::create(libraryPaths).resolve(
+      // TODO: Array["std"].concat()
+      // TODO: Allow control via `--no-std`.
+      results.getArray("dependencies"),
+      target,
+    );
 
     disasmAll = results.getBool("disasm-all");
     disasmAnnotated = results.getBool("disasm-annotated");
@@ -80,19 +114,7 @@ private class Config{
     exportedAsFunctions = UnorderedSet::createFromItems(
       results.getArray("export-function-as"),
     );
-    output = results.maybeGetString("output").default("-");
     // profilePath = results.getString("profile-path");
-    emit = results.getString("emit");
-    if (output.endsWith(".sklib")) {
-      // TODO: Check for inconsistencies between `-o foo.sklib` and `--emit`.
-      !emit = "sklib"
-    };
-    if (emit == "sklib" && results.maybeGetString("sklib-name") is None _) {
-      print_error(`The '--sklib-name' flag is required to build an sklib.`);
-      skipExit(2)
-    };
-    target = results.maybeGetString("target").default(hostTarget());
-    optLevel = results.getString("opt-level").toInt();
     asan = results.getBool("asan");
     autogc = results.getBool("autogc");
     sampleRate = results.getString("sample-rate").toInt();
@@ -144,24 +166,6 @@ private class Config{
     stackAlignStr = stackAlign.toString();
     ptrBitSize = ptrByteSize * 8;
     vtableByteSize = ptrByteSize;
-
-    basePath = Path.parentname(Path.dirname(Environ.current_exe()));
-
-    sysroot = results
-      .maybeGetString("sysroot")
-      .default(Path.join(basePath, "lib"));
-    libraryPaths = results
-      .getArray("library-paths")
-      .concat(Array[sysroot])
-      .collect(Array);
-    libraries = results.getArray("libraries");
-
-    dependencies = Sklib.Resolver::create(libraryPaths).resolve(
-      // TODO: Array["std"].concat()
-      // TODO: Allow control via `--no-std`.
-      results.getArray("dependencies"),
-      target,
-    );
 
     preambles = Environ.varOpt("SKC_PREAMBLE") match {
     | Some(skcPreamble) if (!skcPreamble.trim().isEmpty()) ->
