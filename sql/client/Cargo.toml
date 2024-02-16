@@ -1,0 +1,8 @@
+[package]
+name = "skdb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fastwebsockets = "0.6.0"
+tokio-rustls = "0.25.0"
