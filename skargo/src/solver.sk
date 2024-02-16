@@ -82,4 +82,27 @@ fun getDependencies(
     .default(Success(result.chill()));
 }
 
+// FIXME: What happens with path constraints when the given name does not match
+// the manifest name of the dependency? We should ensure they match.
+fun topologicalSort(
+  root: String,
+  manifests: Map<String, Manifest>,
+): Array<String> {
+  queue = mutable Vector[root];
+  pos = 0;
+
+  while (pos < queue.size()) {
+    current = queue[pos];
+    !pos = pos + 1;
+
+    for (dep in manifests[current].dependencies.keys()) {
+      // TODO: The call to `take()` is expensive.
+      if (queue.take(pos).find(x -> x == dep) is Some _) continue;
+      queue.push(dep)
+    }
+  };
+
+  queue.collect(Array).reversed()
+}
+
 module end;
