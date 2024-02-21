@@ -1,0 +1,35 @@
+module Skargo;
+
+fun clean(): (Cli.Command, Cli.ParseResults ~> void) {
+  (
+    Cli.Command("clean")
+      .about("Remove the target directory")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
+      .arg(Cli.StringArg("target").about("Build for the target triple"))
+      .arg(
+        Cli.StringArg("target-dir").about(
+          "Directory for all generated artifacts",
+        ),
+      )
+      .arg(
+        Cli.StringArg("profile").about(
+          "Build artifacts with the specified profile",
+        ),
+      )
+      .arg(
+        Cli.BoolArg("release")
+          .short("r")
+          .long("release")
+          .about("Build artifacts in release mode, with optimizations"),
+      ),
+    args ~> gctxCmd(args, execClean),
+  )
+}
+
+fun execClean(gctx: GlobalContext, args: Cli.ParseResults): void {
+  ws = workspace(args, gctx);
+  // TODO: Clean only for a specific arch specified with `--target`?
+  run(Array["rm", "-rf", ws.target_dir()], gctx.console)
+}
+
+module end;
