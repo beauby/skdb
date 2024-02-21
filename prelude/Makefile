@@ -22,6 +22,10 @@ SKIP_SRC=$(shell find src/ -name '*.sk')
 
 .PHONY: default
 default: $(OUT_DIR)/libbacktrace.a $(OUT_DIR)/libskip_runtime64.a
+	@echo "skargo:skc-preamble=preamble/preamble64.ll"
+	@echo "skargo:skc-link-lib=$(OUT_DIR)/libskip_runtime64.a"
+	@echo "skargo:skc-link-lib=$(OUT_DIR)/libbacktrace.a"
+	@echo "skargo:skc-link-arg=-lpthread"
 
 .PHONY: wasm
 wasm: $(OUT_DIR)/libskip_runtime32.bc
