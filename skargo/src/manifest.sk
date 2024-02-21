@@ -1,18 +1,21 @@
 module Skargo;
 
 // TODO: Add support for `git` repositories as a package location.
-class ManifestDependency{
+class TomlManifestDependency{
   version: ?Semver.VersionReq = None(),
   path: ?String = None(),
 } {
-  static fun fromTOML(basePath: String, toml: TOML.Value): ManifestDependency {
+  static fun fromTOML(
+    basePath: String,
+    toml: TOML.Value,
+  ): TomlManifestDependency {
     toml match {
     | TOML.String(v) ->
-      ManifestDependency{version => Some(Semver.VersionReq::fromString(v))}
+      TomlManifestDependency{version => Some(Semver.VersionReq::fromString(v))}
     | t @ TOML.Table _ ->
       t.maybeGetString("path") match {
       | Some(path) ->
-        ManifestDependency{
+        TomlManifestDependency{
           // FIXME: This breaks on absolute paths.
           path => Some(Path.join(basePath, path)),
           version => t
@@ -68,34 +71,34 @@ class TargetTriple(
   }
 }
 
-class ManifestBinary(name: String, main: String) uses Equality {
-  static fun fromTOML(toml: TOML.Table): ManifestBinary {
+class TomlManifestBinary(name: String, main: String) uses Equality {
+  static fun fromTOML(toml: TOML.Table): TomlManifestBinary {
     name = toml.getString("name");
     main = toml.getString("main");
 
-    ManifestBinary(name, main)
+    TomlManifestBinary(name, main)
   }
 }
 
-class Manifest{
+class TomlManifest{
   name: String,
   path: String,
   version: Semver.Version,
   srcs: Array<String>,
   tests: Array<String>,
   testHarness: String,
-  dependencies: Map<String, ManifestDependency>,
-  buildDependencies: Map<String, ManifestDependency>,
-  bin: Array<ManifestBinary>,
+  dependencies: Map<String, TomlManifestDependency>,
+  buildDependencies: Map<String, TomlManifestDependency>,
+  bin: Array<TomlManifestBinary>,
 } uses Equality {
   //
-  fun ==(other: Manifest): Bool {
+  fun ==(other: TomlManifest): Bool {
     this.name == other.name &&
       this.path == other.path &&
       this.version == other.version
   }
 
-  static fun read(path: String): Manifest {
+  static fun read(path: String): TomlManifest {
     basePath = Path.dirname(path);
     toml = TOML.decode(FileSystem.readTextFile(path));
     package = toml.getTable("package");
@@ -126,21 +129,23 @@ class Manifest{
     };
 
     dependencies = toml.getTable("dependencies").map.map((_, v) ->
-      ManifestDependency::fromTOML(basePath, v)
+      TomlManifestDependency::fromTOML(basePath, v)
     );
 
     buildDependencies = toml.maybeGetTable("build-dependencies") match {
     | Some(bDependencies) ->
-      bDependencies.map.map((_, v) -> ManifestDependency::fromTOML(basePath, v))
+      bDependencies.map.map((_, v) ->
+        TomlManifestDependency::fromTOML(basePath, v)
+      )
     | _ -> Map[]
     };
 
     bin = toml.maybeGetArray("bin") match {
-    | Some(arr) -> arr.map(t -> ManifestBinary::fromTOML(t.expectTable()))
+    | Some(arr) -> arr.map(t -> TomlManifestBinary::fromTOML(t.expectTable()))
     | None() -> Array[]
     };
 
-    Manifest{
+    TomlManifest{
       name,
       path => basePath,
       version,

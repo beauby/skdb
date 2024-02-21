@@ -127,7 +127,10 @@ fun execBuild(args: Cli.ParseResults, env: Env): void {
   );
 }
 
-fun collectBinaries(args: Cli.ParseResults, env: Env): Array<ManifestBinary> {
+fun collectBinaries(
+  args: Cli.ParseResults,
+  env: Env,
+): Array<TomlManifestBinary> {
   args.maybeGetString("bin") match {
   | Some(name) ->
     env.manifest.bin.find(b -> b.name == name) match {
@@ -140,8 +143,8 @@ fun collectBinaries(args: Cli.ParseResults, env: Env): Array<ManifestBinary> {
 
 fun execBuildContext(
   bc: BuildContext,
-  bins: Array<ManifestBinary>,
-  building: List<Manifest> = List.Nil(),
+  bins: Array<TomlManifestBinary>,
+  building: List<TomlManifest> = List.Nil(),
 ): void {
   checkBuildFiles(bc, false, building);
   genVersionFile(bc);

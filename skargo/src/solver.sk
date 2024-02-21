@@ -2,11 +2,12 @@ module Skargo;
 
 private fun fetchLatestManifest(
   name: String,
-  constraint: ManifestDependency,
+  constraint: TomlManifestDependency,
   reps: Array<String>,
-): ?Manifest {
+): ?TomlManifest {
   constraint.path match {
-  | Some(path) -> return Some(Manifest::read(Path.join(path, kManifestFile)))
+  | Some(path) ->
+    return Some(TomlManifest::read(Path.join(path, kManifestFile)))
   | _ -> void
   };
 
@@ -14,12 +15,12 @@ private fun fetchLatestManifest(
   | None() -> invariant_violation("unreachable")
   | Some(r) ->
     // Fetch highest available version within range.
-    optLast: ?Manifest = None();
+    optLast: ?TomlManifest = None();
     for (repo in reps) {
       dir = Path.join(repo, name);
       mFile = Path.join(dir, kManifestFile);
       if (FileSystem.exists(mFile)) {
-        manifest = Manifest::read(mFile);
+        manifest = TomlManifest::read(mFile);
         if (r.matches(manifest.version)) {
           !optLast = optLast match {
           | Some(
@@ -38,8 +39,8 @@ private fun fetchLatestManifest(
 
 // TODO: Backtrack on conflict, and try previous versions.
 private fun solveDependencies(
-  manifest: Manifest,
-  solved: mutable Map<String, Manifest>,
+  manifest: TomlManifest,
+  solved: mutable Map<String, TomlManifest>,
   reps: Array<String>,
 ): ?UnsatisfiableDependency {
   for ((name, constraint) in manifest.dependencies.items()) {
@@ -69,13 +70,13 @@ private fun solveDependencies(
 class UnsatisfiableDependency(
   path: String,
   name: String,
-  constraint: ManifestDependency,
+  constraint: TomlManifestDependency,
 ) extends Exception {}
 
 fun getDependencies(
-  manifest: Manifest,
+  manifest: TomlManifest,
   reps: Array<String>,
-): Result<Map<String, Manifest>, Exception> {
+): Result<Map<String, TomlManifest>, Exception> {
   result = mutable Map[manifest.name => manifest];
   solveDependencies(manifest, result, reps)
     .map(e -> Failure(e))

@@ -8,7 +8,7 @@ private class BuildContext{
   profile: String,
   stateDb: String,
   files: Array<String>,
-  deps: Map<String, Manifest>,
+  deps: Map<String, TomlManifest>,
 } {
   static fun create(
     env: Env,
@@ -52,8 +52,8 @@ private fun getTargetDir(rootDir: String, targetOpt: ?String): String {
 }
 
 private fun getFiles(
-  manifest: Manifest,
-  deps: Map<String, Manifest>,
+  manifest: TomlManifest,
+  deps: Map<String, TomlManifest>,
 ): Array<String> {
   files = manifest.tests;
   for (dep in deps) {

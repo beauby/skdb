@@ -30,7 +30,7 @@ private class UserConfig{
 
 private class Env{
   rootDir: String,
-  manifest: Manifest,
+  manifest: TomlManifest,
   console: Console,
   config: UserConfig,
 } {
@@ -39,13 +39,13 @@ private class Env{
     config = findUserConfig();
     Env{
       rootDir,
-      manifest => Manifest::read(Path.join(rootDir, kManifestFile)),
+      manifest => TomlManifest::read(Path.join(rootDir, kManifestFile)),
       console => Console(verbosity),
       config,
     }
   }
 
-  fun getDependencies(): Map<String, Manifest> {
+  fun getDependencies(): Map<String, TomlManifest> {
     // TODO When we start having remote repositories, this will also download the dependencies.
     getDependencies(this.manifest, this.config.repositories) match {
     | Success(v) -> v
@@ -58,7 +58,7 @@ private class Env{
     config = findUserConfig(Some(rootDir));
     Env{
       rootDir,
-      manifest => Manifest::read(path),
+      manifest => TomlManifest::read(path),
       console => Console(verbosity),
       config,
     }
@@ -291,7 +291,7 @@ private fun generateManifestTemplate(
 fun checkBuildFiles(
   bc: BuildContext,
   test: Bool,
-  building: List<Manifest>,
+  building: List<TomlManifest>,
 ): void {
   // TODO manage when same dependency added multiple time with different name
   links = SortedSet[];
@@ -323,23 +323,23 @@ fun checkBuildFiles(
 
 fun checkBuildFile(
   bc: BuildContext,
-  dependency: Manifest,
+  dependency: TomlManifest,
   links: SortedSet<String>,
   libraries: mutable Vector<String>,
   preambles: mutable Vector<String>,
   test: Bool,
-  building: List<Manifest>,
+  building: List<TomlManifest>,
 ): SortedSet<String> {
   // TODO manage version
   skbuildPath = Path.join(dependency.path, "build.sk");
   targetDir = Path.join(bc.targetDir, `deps/${dependency.name}`);
   optCmd = if (FileSystem.exists(skbuildPath)) {
     _ = system("mkdir -p " + targetDir);
-    bin = ManifestBinary(
+    bin = TomlManifestBinary(
       dependency.name + "Build",
       `${pascalCase(dependency.name)}Build.main`,
     );
-    bManifest = Manifest{
+    bManifest = TomlManifest{
       name => dependency.name + "_build",
       path => targetDir,
       version => dependency.version,
