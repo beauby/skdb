@@ -27,6 +27,7 @@ class SystemCallException(code: Int, error: ?String = None()) extends Exception
 //     }
 //   }
 
+<<<<<<< HEAD
 //   fun getDependencies(): Map<String, Manifest> {
 //     // TODO When we start having remote repositories, this will also download the dependencies.
 //     getDependencies(this.manifest, this.config.repositories) match {
@@ -46,6 +47,69 @@ class SystemCallException(code: Int, error: ?String = None()) extends Exception
 //     }
 //   }
 // }
+||||||| parent of 41ad3b97 (wip)
+private class Env{
+  rootDir: String,
+  manifest: TomlManifest,
+  console: Console,
+  config: UserConfig,
+} {
+  static fun create(verbosity: ConsoleVerbosity): Env {
+    rootDir = findRootDir();
+    config = findUserConfig();
+    Env{
+      rootDir,
+      manifest => TomlManifest::read(Path.join(rootDir, kManifestFile)),
+      console => Console(verbosity),
+      config,
+    }
+  }
+
+  fun getDependencies(): Map<String, TomlManifest> {
+    // TODO When we start having remote repositories, this will also download the dependencies.
+    getDependencies(this.manifest, this.config.repositories) match {
+    | Success(v) -> v
+    | Failure(e) -> throw e
+    };
+  }
+
+  static fun fromFile(path: String, verbosity: ConsoleVerbosity): Env {
+    rootDir = Path.dirname(path);
+    config = findUserConfig(Some(rootDir));
+    Env{
+      rootDir,
+      manifest => TomlManifest::read(path),
+      console => Console(verbosity),
+      config,
+    }
+  }
+}
+=======
+private class Env{rootDir: String, console: Console, config: UserConfig} {
+  static fun create(verbosity: ConsoleVerbosity): Env {
+    rootDir = findRootDir();
+    config = findUserConfig();
+    Env{rootDir, console => Console(verbosity), config}
+  }
+  // fun getDependencies(): Map<String, Manifest> {
+  //   // TODO When we start having remote repositories, this will also download the dependencies.
+  //   getDependencies(this.manifest, this.config.repositories) match {
+  //   | Success(v) -> v
+  //   | Failure(e) -> throw e
+  //   };
+  // }
+  // static fun fromFile(path: String, verbosity: ConsoleVerbosity): Env {
+  //   rootDir = Path.dirname(path);
+  //   config = findUserConfig(Some(rootDir));
+  //   Env{
+  //     rootDir,
+  //     manifest => Manifest::read(path),
+  //     console => Console(verbosity),
+  //     config,
+  //   }
+  // }
+}
+>>>>>>> 41ad3b97 (wip)
 
 // TODO: Support `--manifest-path`.
 private fun findRootDir(): String {
@@ -259,7 +323,40 @@ private fun generateManifestTemplate(
     )
     .join("\n");
 }
+// fun checkBuildFiles(
+//   bc: BuildContext,
+//   test: Bool,
+//   building: List<Manifest>,
+// ): void {
+//   // TODO manage when same dependency added multiple time with different name
+//   links = SortedSet[];
+//   libraries = mutable Vector[];
+//   preambles = mutable Vector[];
+//   bc.deps.each((_k, v) -> {
+//     if (!building.any(e -> v.name == e.name)) {
+//       !links = checkBuildFile(
+//         bc,
+//         v,
+//         links,
+//         libraries,
+//         preambles,
+//         test,
+//         building,
+//       )
+//     }
+//   });
+//   if (!libraries.isEmpty()) {
+//     Environ.set_var(
+//       "SKC_LINK",
+//       libraries.toArray().concat(links.toArray()).join(Path.listSeparator),
+//     );
+//   };
+//   if (!preambles.isEmpty()) {
+//     Environ.set_var("SKC_PREAMBLE", preambles.join(Path.listSeparator));
+//   }
+// }
 
+<<<<<<< HEAD
 fun checkBuildFiles(
   bc: BuildContext,
   test: Bool,
@@ -292,7 +389,156 @@ fun checkBuildFiles(
     Environ.set_var("SKC_PREAMBLE", preambles.join(Path.listSeparator));
   }
 }
+||||||| parent of 41ad3b97 (wip)
+fun checkBuildFiles(
+  bc: BuildContext,
+  test: Bool,
+  building: List<TomlManifest>,
+): void {
+  // TODO manage when same dependency added multiple time with different name
+  links = SortedSet[];
+  libraries = mutable Vector[];
+  preambles = mutable Vector[];
+  bc.deps.each((_k, v) -> {
+    if (!building.any(e -> v.name == e.name)) {
+      !links = checkBuildFile(
+        bc,
+        v,
+        links,
+        libraries,
+        preambles,
+        test,
+        building,
+      )
+    }
+  });
+  if (!libraries.isEmpty()) {
+    Environ.set_var(
+      "SKC_LINK",
+      libraries.toArray().concat(links.toArray()).join(Path.listSeparator),
+    );
+  };
+  if (!preambles.isEmpty()) {
+    Environ.set_var("SKC_PREAMBLE", preambles.join(Path.listSeparator));
+  }
+}
+=======
+// fun checkBuildFile(
+//   bc: BuildContext,
+//   dependency: Manifest,
+//   links: SortedSet<String>,
+//   libraries: mutable Vector<String>,
+//   preambles: mutable Vector<String>,
+//   test: Bool,
+//   building: List<Manifest>,
+// ): SortedSet<String> {
+//   // TODO manage version
+//   skbuildPath = Path.join(dependency.path, "build.sk");
+//   targetDir = Path.join(bc.targetDir, `deps/${dependency.name}`);
+//   optCmd = if (FileSystem.exists(skbuildPath)) {
+//     _ = system("mkdir -p " + targetDir);
+//     bin = TomlManifestBinary(
+//       dependency.name + "Build",
+//       `${pascalCase(dependency.name)}Build.main`,
+//     );
+//     bManifest = TomlManifest{
+//       name => dependency.name + "_build",
+//       path => targetDir,
+//       version => dependency.version,
+//       srcs => Array[skbuildPath],
+//       tests => Array[],
+//       testHarness => "SKTest.main",
+//       dependencies => dependency.buildDependencies,
+//       buildDependencies => Map[],
+//       bin => Array[bin],
+//     };
+//     env = Env{
+//       rootDir => targetDir,
+//       manifest => bManifest,
+//       console => bc.env.console,
+//       config => bc.env.config,
+//     };
+//     deps = env.getDependencies();
+//     sbc = BuildContext{
+//       env,
+//       skc => bc.skc,
+//       targetDir => bc.targetDir,
+//       target => None(),
+//       profile => bc.profile,
+//       stateDb => Path.join(targetDir, "state.db"),
+//       files => getFiles(env.manifest, deps).concat(
+//         Array[Path.join(bc.targetDir, kVersionFile)],
+//       ),
+//       deps,
+//     };
+//     bc.deps.each((_k, v) -> _ = Environ.set_var(`PCK_${v.name}`, v.path));
+//     execBuildContext(sbc, bManifest.bin, List.Cons(dependency, building));
+//     binPath = Path.join(bc.targetDir, bin.name);
+//     Environ.set_var("OUT_DIR", targetDir);
+//     Environ.set_var("PCK_DIR", dependency.path);
+//     Environ.set_var("NAME", dependency.name);
+//     Environ.set_var("PROFILE", bc.profile);
+//     Environ.set_var(
+//       "VERBOSE",
+//       (bc.env.console.verbosity >= VerbosityVerbose()).toString(),
+//     );
+//     Environ.set_var("TEST", test.toString());
+//     bc.target match {
+//     | Some(t) -> Environ.set_var("TARGET", t.toString())
+//     | _ -> Environ.remove_var("TARGET")
+//     };
+//     Some(Array[binPath])
+//   } else {
+//     None()
+//   };
+//   optCmd.each(cmd -> {
+//     _ = system("mkdir -p " + targetDir);
+//     buffer = "";
+//     onLine = line -> {
+//       if (line.startsWith("skargo:")) {
+//         artifact = line.splitFirst(":").i1;
+//         if (artifact.startsWith("library=")) {
+//           libraries.push(artifact.substring(artifact.getIter().drop(8)));
+//         } else if (artifact.startsWith("preamble=")) {
+//           preambles.push(artifact.substring(artifact.getIter().drop(9)));
+//         } else if (artifact.startsWith("link=")) {
+//           !links = links.set(artifact.substring(artifact.getIter().drop(5)));
+//         }
+//       }
+//     };
+//     if (bc.env.console.verbosity >= VerbosityVerbose()) {
+//       print_error(`>> ${cmd.join(" ")}`)
+//     };
+//     p = System.subprocess(
+//       cmd,
+//       str -> {
+//         lines = (buffer + str).split("\n");
+//         for (idx in Range(0, lines.size() - 1)) {
+//           onLine(lines[idx])
+//         }
+//       },
+//       str ->
+//         if (bc.env.console.verbosity >= VerbosityVerbose()) {
+//           print_error_raw(str)
+//         }
+//       ,
+//     );
+//     if (!buffer.isEmpty()) {
+//       onLine(buffer)
+//     };
+//     if (!p.success()) {
+//       if (bc.env.console.verbosity < VerbosityVerbose()) {
+//         print_raw(p.stdout);
+//         print_error_raw(p.stderr);
+//       };
+//       throw SystemCallException(p.exitcode())
+//     };
+//   });
+//   links
+// }
+>>>>>>> 41ad3b97 (wip)
 
+<<<<<<< HEAD
 fun checkBuildFile(
   bc: BuildContext,
   manifest: Manifest,
@@ -412,6 +658,122 @@ fun checkBuildFile(
   };
   links
 }
+||||||| parent of 41ad3b97 (wip)
+fun checkBuildFile(
+  bc: BuildContext,
+  dependency: TomlManifest,
+  links: SortedSet<String>,
+  libraries: mutable Vector<String>,
+  preambles: mutable Vector<String>,
+  test: Bool,
+  building: List<TomlManifest>,
+): SortedSet<String> {
+  // TODO manage version
+  skbuildPath = Path.join(dependency.path, "build.sk");
+  targetDir = Path.join(bc.targetDir, `deps/${dependency.name}`);
+  optCmd = if (FileSystem.exists(skbuildPath)) {
+    _ = system("mkdir -p " + targetDir);
+    bin = TomlManifestBinary(
+      dependency.name + "Build",
+      `${pascalCase(dependency.name)}Build.main`,
+    );
+    bManifest = TomlManifest{
+      name => dependency.name + "_build",
+      path => targetDir,
+      version => dependency.version,
+      srcs => Array[skbuildPath],
+      tests => Array[],
+      testHarness => "SKTest.main",
+      dependencies => dependency.buildDependencies,
+      buildDependencies => Map[],
+      bin => Array[bin],
+    };
+    env = Env{
+      rootDir => targetDir,
+      manifest => bManifest,
+      console => bc.env.console,
+      config => bc.env.config,
+    };
+    deps = env.getDependencies();
+    sbc = BuildContext{
+      env,
+      skc => bc.skc,
+      targetDir => bc.targetDir,
+      target => None(),
+      profile => bc.profile,
+      stateDb => Path.join(targetDir, "state.db"),
+      files => getFiles(env.manifest, deps).concat(
+        Array[Path.join(bc.targetDir, kVersionFile)],
+      ),
+      deps,
+    };
+    bc.deps.each((_k, v) -> _ = Environ.set_var(`PCK_${v.name}`, v.path));
+    execBuildContext(sbc, bManifest.bin, List.Cons(dependency, building));
+    binPath = Path.join(bc.targetDir, bin.name);
+    Environ.set_var("OUT_DIR", targetDir);
+    Environ.set_var("PCK_DIR", dependency.path);
+    Environ.set_var("NAME", dependency.name);
+    Environ.set_var("PROFILE", bc.profile);
+    Environ.set_var(
+      "VERBOSE",
+      (bc.env.console.verbosity >= VerbosityVerbose()).toString(),
+    );
+    Environ.set_var("TEST", test.toString());
+    bc.target match {
+    | Some(t) -> Environ.set_var("TARGET", t.toString())
+    | _ -> Environ.remove_var("TARGET")
+    };
+    Some(Array[binPath])
+  } else {
+    None()
+  };
+  optCmd.each(cmd -> {
+    _ = system("mkdir -p " + targetDir);
+    buffer = "";
+    onLine = line -> {
+      if (line.startsWith("skargo:")) {
+        artifact = line.splitFirst(":").i1;
+        if (artifact.startsWith("library=")) {
+          libraries.push(artifact.substring(artifact.getIter().drop(8)));
+        } else if (artifact.startsWith("preamble=")) {
+          preambles.push(artifact.substring(artifact.getIter().drop(9)));
+        } else if (artifact.startsWith("link=")) {
+          !links = links.set(artifact.substring(artifact.getIter().drop(5)));
+        }
+      }
+    };
+    if (bc.env.console.verbosity >= VerbosityVerbose()) {
+      print_error(`>> ${cmd.join(" ")}`)
+    };
+    p = System.subprocess(
+      cmd,
+      str -> {
+        lines = (buffer + str).split("\n");
+        for (idx in Range(0, lines.size() - 1)) {
+          onLine(lines[idx])
+        }
+      },
+      str ->
+        if (bc.env.console.verbosity >= VerbosityVerbose()) {
+          print_error_raw(str)
+        }
+      ,
+    );
+    if (!buffer.isEmpty()) {
+      onLine(buffer)
+    };
+    if (!p.success()) {
+      if (bc.env.console.verbosity < VerbosityVerbose()) {
+        print_raw(p.stdout);
+        print_error_raw(p.stderr);
+      };
+      throw SystemCallException(p.exitcode())
+    };
+  });
+  links
+}
+=======
+>>>>>>> 41ad3b97 (wip)
 
 private fun getFiles(
   bc: BuildContext,

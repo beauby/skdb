@@ -1,13 +1,33 @@
 module Skargo;
 
 private fun fetchLatestManifest(
+<<<<<<< HEAD
   dep: Dependency,
   reps: Array<String>,
 ): ?Manifest {
   dep.source_id.kind match {
   | PathSource() ->
     return Some(Manifest::read(Path.join(dep.source_id.url, kManifestFile)))
+||||||| parent of 41ad3b97 (wip)
+  name: String,
+  constraint: TomlManifestDependency,
+  reps: Array<String>,
+): ?TomlManifest {
+  constraint.path match {
+  | Some(path) ->
+    return Some(TomlManifest::read(Path.join(path, kManifestFile)))
+  | _ -> void
+=======
+  name: String,
+  constraint: Dependency,
+  //  reps: Array<String>,
+): ?Manifest {
+  constraint.source_id match {
+  | SourceId(path, PathSource()) ->
+    Some(Manifest::read(Path.join(path, kManifestFile)))
+>>>>>>> 41ad3b97 (wip)
   };
+<<<<<<< HEAD
 
   // Fetch highest available version within range.
   optLast: ?Manifest = None();
@@ -32,15 +52,79 @@ private fun fetchLatestManifest(
     }
   };
   optLast
+||||||| parent of 41ad3b97 (wip)
+
+  constraint.version match {
+  | None() -> invariant_violation("unreachable")
+  | Some(r) ->
+    // Fetch highest available version within range.
+    optLast: ?TomlManifest = None();
+    for (repo in reps) {
+      dir = Path.join(repo, name);
+      mFile = Path.join(dir, kManifestFile);
+      if (FileSystem.exists(mFile)) {
+        manifest = TomlManifest::read(mFile);
+        if (r.matches(manifest.version)) {
+          !optLast = optLast match {
+          | Some(
+            last,
+          ) if (r.matches(last.version) && last.version < manifest.version) ->
+            Some(manifest)
+          | None() -> Some(manifest)
+          | _ -> optLast
+          }
+        };
+      }
+    };
+    optLast
+  }
+=======
+  // constraint.version match {
+  // | None() -> invariant_violation("unreachable")
+  // | Some(r) ->
+  //   // Fetch highest available version within range.
+  //   optLast: ?Manifest = None();
+  //   for (repo in reps) {
+  //     dir = Path.join(repo, name);
+  //     mFile = Path.join(dir, kManifestFile);
+  //     if (FileSystem.exists(mFile)) {
+  //       manifest = Manifest::read(mFile);
+  //       if (r.matches(manifest.version)) {
+  //         !optLast = optLast match {
+  //         | Some(
+  //           last,
+  //         ) if (r.matches(last.version) && last.version < manifest.version) ->
+  //           Some(manifest)
+  //         | None() -> Some(manifest)
+  //         | _ -> optLast
+  //         }
+  //       };
+  //     }
+  //   };
+  //   optLast
+  // }
+>>>>>>> 41ad3b97 (wip)
 }
 
 // TODO: Backtrack on conflict, and try previous versions.
+<<<<<<< HEAD
 private fun solveDependencies(
   manifest: Manifest,
   solved: mutable Map<String, Manifest>,
   reps: Array<String>,
   build: Bool,
+||||||| parent of 41ad3b97 (wip)
+private fun solveDependencies(
+  manifest: TomlManifest,
+  solved: mutable Map<String, TomlManifest>,
+  reps: Array<String>,
+=======
+private fun resolve_dependencies(
+  manifest: Manifest,
+  solved: mutable Map<ActivationKey, Manifest>,
+>>>>>>> 41ad3b97 (wip)
 ): ?UnsatisfiableDependency {
+<<<<<<< HEAD
   dependencies = if (build) {
     manifest.build_dependencies
   } else {
@@ -57,11 +141,32 @@ private fun solveDependencies(
       ) if (
         depManifest.package_id.version == solved[dep.name].package_id.version
       ) ->
+||||||| parent of 41ad3b97 (wip)
+  for ((name, constraint) in manifest.dependencies.items()) {
+    if (solved.containsKey(name)) {
+      fetchLatestManifest(name, constraint, reps) match {
+      | Some(depManifest) if (depManifest.version == solved[name].version) ->
+=======
+  for (dep in manifest.dependencies) {
+    if (dep.source_id is PathSource _) {
+      dep_manifest = Manifest::read(Path.join(path, kManifestFile));
+      if (
+    }
+    if (solved.containsKey(name)) {
+      fetchLatestManifest(name, constraint /*, reps*/) match {
+      | Some(depManifest) if (depManifest.version == solved[name].version) ->
+>>>>>>> 41ad3b97 (wip)
         void
       | _ -> return Some(UnsatisfiableDependency(dep))
       }
     } else {
+<<<<<<< HEAD
       fetchLatestManifest(dep, reps) match {
+||||||| parent of 41ad3b97 (wip)
+      fetchLatestManifest(name, constraint, reps) match {
+=======
+      fetchLatestManifest(name, constraint /*, reps*/) match {
+>>>>>>> 41ad3b97 (wip)
       | Some(depManifest) ->
         solved.set(dep.name, depManifest);
         res = solveDependencies(depManifest, solved, reps);
@@ -75,8 +180,23 @@ private fun solveDependencies(
   None()
 }
 
+<<<<<<< HEAD
 class UnsatisfiableDependency(dep: Dependency) extends Exception {}
+||||||| parent of 41ad3b97 (wip)
+class UnsatisfiableDependency(
+  path: String,
+  name: String,
+  constraint: TomlManifestDependency,
+) extends Exception {}
+=======
+class UnsatisfiableDependency(
+  path: String,
+  name: String,
+  constraint: Dependency,
+) extends Exception {}
+>>>>>>> 41ad3b97 (wip)
 
+<<<<<<< HEAD
 fun getDependencies(
   manifests: Array<Manifest>,
   build: Bool = false,
@@ -91,6 +211,56 @@ fun getDependencies(
   };
 
   result.chill()
+||||||| parent of 41ad3b97 (wip)
+fun getDependencies(
+  manifest: TomlManifest,
+  reps: Array<String>,
+): Result<Map<String, TomlManifest>, Exception> {
+  result = mutable Map[manifest.name => manifest];
+  solveDependencies(manifest, result, reps)
+    .map(e -> Failure(e))
+    .default(Success(result.chill()));
+=======
+base class SemverCompatibility uses Equality, Hashable {
+  children =
+  | SemverCompatMajor(Int)
+  | SemverCompatMinor(Int)
+  | SemverCompatPatch(Int)
+
+  static fun create(ver: Semver.Version): SemverCompatibility {
+    if (ver.major != 0) {
+      SemverCompatMajor(ver.major)
+    } else if (ver.minor != 0) {
+      SemverCompatMinor(ver.minor)
+    } else {
+      SemverCompatPatch(ver.patch)
+    }
+  }
+}
+
+class ActivationKey(
+  name: String,
+  source_id: SourceId,
+  semver_compat: SemverCompatibility,
+) uses Equality, Hashable {
+  static fun create(pkg_id: PackageId): ActivationKey {
+    ActivationKey(
+      pkg_id.name,
+      pkg_id.source_id,
+      SemverCompatibility::create(pkg_id.version),
+    )
+  }
+}
+
+fun resolve(
+  manifest: Manifest,
+): Result<Map<ActivationKey, Manifest>, Exception> {
+  result = mutable Map[ActivationKey::create(manifest.package_id) => manifest];
+  resolve_dependencies(manifest, result) match {
+  | Success(m) -> Success(m.chill())
+  | Failure(err) -> Failure(err)
+  }
+>>>>>>> 41ad3b97 (wip)
 }
 
 module end;

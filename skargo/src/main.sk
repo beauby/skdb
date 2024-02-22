@@ -137,6 +137,7 @@ fun execBuild(args: Cli.ParseResults, gctx: GlobalContext): void {
   );
 }
 
+<<<<<<< HEAD
 // fun collectBinaries(
 //   args: Cli.ParseResults,
 //   gctx: GlobalContext,
@@ -153,16 +154,62 @@ fun execBuild(args: Cli.ParseResults, gctx: GlobalContext): void {
 //     env.manifest.targets.filter(t -> t.kind is BinTarget _).collect(Array)
 //   };
 // }
+||||||| parent of 41ad3b97 (wip)
+fun collectBinaries(
+  args: Cli.ParseResults,
+  env: Env,
+): Array<TomlManifestBinary> {
+  args.maybeGetString("bin") match {
+  | Some(name) ->
+    env.manifest.bin.find(b -> b.name == name) match {
+    | Some(bin) -> Array[bin]
+    | None() -> invariant_violation(`Unknown binary ${name}`)
+    }
+  | None() -> env.manifest.bin
+  };
+}
+=======
+fun collectBinaries(args: Cli.ParseResults, env: Env): Array<Target> {
+  args.maybeGetString("bin") match {
+  | Some(name) ->
+    env.manifest.targets.find(t ->
+      t.kind is BinTarget _ && t.name == name
+    ) match {
+    | Some(bin) -> Array[bin]
+    | None() -> invariant_violation(`Unknown binary ${name}`)
+    }
+  | None() ->
+    env.manifest.targets.filter(t -> t.kind is BinTarget _).collect(Array)
+  };
+}
+>>>>>>> 41ad3b97 (wip)
 
 fun execBuildContext(
   bc: BuildContext,
+<<<<<<< HEAD
   bins: Array<Target>,
   building: List<Manifest> = List.Nil(),
+||||||| parent of 41ad3b97 (wip)
+  bins: Array<TomlManifestBinary>,
+  building: List<TomlManifest> = List.Nil(),
+=======
+  bins: Array<Target>,
+  // building: List<Manifest> = List.Nil(),
+>>>>>>> 41ad3b97 (wip)
 ): void {
-  checkBuildFiles(bc, false, building);
+  // checkBuildFiles(bc, false, building);
   genVersionFile(bc);
   for (bin in bins) {
+<<<<<<< HEAD
     compile(bc, bin, bc.target_dir_for(bin))
+||||||| parent of 41ad3b97 (wip)
+    compile(bc, bin.name, bin.main)
+=======
+    bin match {
+    | Target(BinTarget(main), name, _) -> compile(bc, name, main)
+    | _ -> invariant_violation("unreachable")
+    }
+>>>>>>> 41ad3b97 (wip)
   };
 }
 
@@ -229,7 +276,7 @@ fun execTest(args: Cli.ParseResults, gctx: GlobalContext): void {
     args.maybeGetString("target-dir"),
     getProfile(args),
   );
-  checkBuildFiles(bc, true, List.Nil());
+  // checkBuildFiles(bc, true, List.Nil());
   genVersionFile(bc);
   test_target = bc.package.manifest.targets
     .find(t -> t.name == "test")

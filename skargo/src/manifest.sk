@@ -3,10 +3,37 @@ module Skargo;
 const kDefaultTestHarness: String = "SKTest.main";
 
 // TODO: Add support for `git` repositories as a package location.
+<<<<<<< HEAD
 class TomlDependency{version: ?String = None(), path: ?String = None()} {
   static fun fromTOML(basePath: String, toml: TOML.Value): TomlDependency {
+||||||| parent of 41ad3b97 (wip)
+class TomlManifestDependency{
+  version: ?Semver.VersionReq = None(),
+  path: ?String = None(),
+} {
+  static fun fromTOML(
+    basePath: String,
+    toml: TOML.Value,
+  ): TomlManifestDependency {
+=======
+class TomlManifestDependency{
+  version: ?String = None(),
+  path: ?String = None(),
+} uses Equality, Hashable {
+  static fun fromTOML(
+    basePath: String,
+    toml: TOML.Value,
+  ): TomlManifestDependency {
+>>>>>>> 41ad3b97 (wip)
     toml match {
+<<<<<<< HEAD
     | TOML.String(v) -> TomlDependency{version => Some(v)}
+||||||| parent of 41ad3b97 (wip)
+    | TOML.String(v) ->
+      TomlManifestDependency{version => Some(Semver.VersionReq::fromString(v))}
+=======
+    | TOML.String(v) -> TomlManifestDependency{version => Some(v)}
+>>>>>>> 41ad3b97 (wip)
     | t @ TOML.Table _ ->
       t.maybeGetString("path") match {
       | Some(path) ->
@@ -22,6 +49,7 @@ class TomlDependency{version: ?String = None(), path: ?String = None()} {
   }
 }
 
+<<<<<<< HEAD
 class Dependency(
   name: String,
   source_id: SourceId,
@@ -37,6 +65,31 @@ class Dependency(
     version_req = version match {
     | Some(req) -> Semver.VersionReq::fromString(req)
     | None() -> Semver.VersionReq::kStar
+||||||| parent of 41ad3b97 (wip)
+class TargetTriple(
+  machine: String,
+  vendor: ?String,
+  operatingsystem: ?String,
+) uses Orderable, Show {
+  //
+  static fun fromString(str: String): TargetTriple {
+    components = str.split("-");
+    if (components.isEmpty() || components.size() > 3) {
+      invariant_violation("Invalid target triplet string " + str)
+=======
+class TargetTriple(
+  machine: String,
+  vendor: ?String,
+  operatingsystem: ?String,
+) uses Orderable, Show, Equality, Hashable {
+  fun == from Orderable;
+
+  //
+  static fun fromString(str: String): TargetTriple {
+    components = str.split("-");
+    if (components.isEmpty() || components.size() > 3) {
+      invariant_violation("Invalid target triplet string " + str)
+>>>>>>> 41ad3b97 (wip)
     };
 
     Dependency(name, source_id, version_req, kind)
@@ -61,6 +114,7 @@ class Dependency(
   }
 }
 
+<<<<<<< HEAD
 class SourceId(url: String, kind: SourceKind) {
   static fun from_path(path: String): SourceId {
     SourceId(path, PathSource())
@@ -83,6 +137,13 @@ base class DepKind {
 
 class TomlBinary(name: String, main: String) uses Equality {
   static fun fromTOML(toml: TOML.Table): TomlBinary {
+||||||| parent of 41ad3b97 (wip)
+class TomlManifestBinary(name: String, main: String) uses Equality {
+  static fun fromTOML(toml: TOML.Table): TomlManifestBinary {
+=======
+class TomlManifestBinary(name: String, main: String) uses Equality, Hashable {
+  static fun fromTOML(toml: TOML.Table): TomlManifestBinary {
+>>>>>>> 41ad3b97 (wip)
     name = toml.getString("name");
     main = toml.getString("main");
 
@@ -92,6 +153,7 @@ class TomlBinary(name: String, main: String) uses Equality {
 
 class TomlManifest{
   name: String,
+<<<<<<< HEAD
   version: String,
   tests: ?Array<String>,
   test_harness: ?String,
@@ -99,6 +161,32 @@ class TomlManifest{
   build_dependencies: Map<String, TomlDependency>,
   bin: Array<TomlBinary>,
 } {
+||||||| parent of 41ad3b97 (wip)
+  path: String,
+  version: Semver.Version,
+  srcs: Array<String>,
+  tests: Array<String>,
+  testHarness: String,
+  dependencies: Map<String, TomlManifestDependency>,
+  buildDependencies: Map<String, TomlManifestDependency>,
+  bin: Array<TomlManifestBinary>,
+} uses Equality {
+  //
+  fun ==(other: TomlManifest): Bool {
+    this.name == other.name &&
+      this.path == other.path &&
+      this.version == other.version
+  }
+
+=======
+  version: Semver.Version,
+  tests: ?Array<String>,
+  testHarness: ?String,
+  dependencies: Map<String, TomlManifestDependency>,
+  buildDependencies: Map<String, TomlManifestDependency>,
+  bin: Array<TomlManifestBinary>,
+} uses Equality, Hashable {
+>>>>>>> 41ad3b97 (wip)
   static fun read(path: String): TomlManifest {
     basePath = Path.dirname(path);
     toml = TOML.decode(FileSystem.readTextFile(path));
@@ -106,10 +194,49 @@ class TomlManifest{
     name = package.getString("name");
     version = package.getString("version");
 
+<<<<<<< HEAD
     test_harness = package.maybeGetString("test-harness");
+||||||| parent of 41ad3b97 (wip)
+    srcs = package.maybeGetArray("srcs") match {
+    | Some(arr) -> arr.map(x -> x.expectString())
+    | _ ->
+      FileSystem.readFilesRecursive(Path.join(basePath, "src"), f ->
+        f.endsWith(".sk")
+      ).toArray()
+    };
+=======
+    testHarness = package.maybeGetString("test-harness");
+>>>>>>> 41ad3b97 (wip)
 
+<<<<<<< HEAD
     tests = package.maybeGetArray("tests").map(arr ->
       arr.map(x -> x.expectString())
+||||||| parent of 41ad3b97 (wip)
+    testHarness = package.maybeGetString("test-harness").default("SKTest.main");
+
+    tests = package.maybeGetArray("tests") match {
+    | Some(arr) -> arr.map(x -> x.expectString())
+    | _ ->
+      testsPath = Path.join(basePath, "tests");
+      if (FileSystem.exists(testsPath)) {
+        FileSystem.readFilesRecursive(testsPath, f ->
+          f.endsWith(".sk")
+        ).toArray()
+      } else {
+        Array[]
+      }
+    };
+
+    dependencies = toml.getTable("dependencies").map.map((_, v) ->
+      TomlManifestDependency::fromTOML(basePath, v)
+=======
+    tests = package.maybeGetArray("tests").map(arr ->
+      arr.map(x -> x.expectString())
+    );
+
+    dependencies = toml.getTable("dependencies").map.map((_, v) ->
+      TomlManifestDependency::fromTOML(basePath, v)
+>>>>>>> 41ad3b97 (wip)
     );
 
     dependencies = toml.getTable("dependencies").map.map((_, v) ->
@@ -139,6 +266,7 @@ class TomlManifest{
   }
 }
 
+<<<<<<< HEAD
 class Manifest(
   package_id: PackageId,
   dependencies: Array<Dependency>,
@@ -246,4 +374,171 @@ private fun manifest_targets(
   res.collect(Array)
 }
 
+||||||| parent of 41ad3b97 (wip)
+=======
+// TODO: Support sources other than local paths.
+class PackageId(
+  name: String,
+  version: Semver.Version,
+  source_id: SourceId,
+) uses Equality, Hashable
+
+class SourceId(url: String, kind: SourceKind) uses Equality, Hashable {
+  static fun from_path(path: String): SourceId {
+    SourceId(path, PathSource())
+  }
+}
+
+base class SourceKind uses Equality, Hashable {
+  children =
+  | PathSource()
+  // | GitSource()
+  // | RegistrySource()
+}
+
+class Dependency(
+  name: String,
+  source_id: SourceId,
+  req: Semver.VersionReq,
+  kind: DepKind,
+) uses Equality, Hashable {
+  static fun create(
+    name: String,
+    source_id: SourceId,
+    version: ?String,
+    kind: DepKind,
+  ): Dependency {
+    version_req = version match {
+    | Some(v) -> Semver.VersionReq::fromString(v)
+    | None() -> Semver.VersionReq::kStar
+    };
+
+    Dependency(name, source_id, version_req, kind)
+  }
+}
+
+base class DepKind uses Equality, Hashable {
+  children =
+  | NormalDep()
+  | BuildDep()
+  | DevelopmentDep()
+}
+
+class Manifest(
+  package_id: PackageId,
+  dependencies: Array<Dependency>,
+  targets: Array<Target>,
+  original: TomlManifest,
+) uses Equality, Hashable {
+  static fun read(manifest_path: String): Manifest {
+    static::fromTomlManifest(TomlManifest::read(manifest_path), manifest_path)
+  }
+
+  static fun fromTomlManifest(
+    manifest: TomlManifest,
+    manifest_path: String,
+  ): Manifest {
+    package_root = Path.dirname(manifest_path);
+    source_id = SourceId::from_path(package_root);
+    package_id = PackageId(manifest.name, manifest.version, source_id);
+    dependencies = mutable Vector[];
+    for (toml_name => toml_dep in manifest.dependencies) {
+      dependencies.push(
+        toml_dep_to_dependency(toml_name, toml_dep, NormalDep()),
+      )
+    };
+    for (toml_name => toml_dep in manifest.buildDependencies) {
+      dependencies.push(toml_dep_to_dependency(toml_name, toml_dep, BuildDep()))
+    };
+    // TODO: Support dev dependencies.
+
+    targets = manifest_targets(manifest, package_id.name, package_root);
+
+    Manifest(package_id, dependencies.collect(Array), targets, manifest)
+  }
+}
+
+private fun manifest_targets(
+  manifest: TomlManifest,
+  package_name: String,
+  package_root: String,
+): Array<Target> {
+  res = mutable Vector[];
+
+  lib_srcs = FileSystem.readFilesRecursive(Path.join(package_root, "src"), f ->
+    f.endsWith(".sk")
+  ).toArray();
+  // TODO: Add lib target once skc supports sklibs.
+  // res.push(Target(LibTarget(), package_name, lib_srcs));
+
+  for (bin in manifest.bin) {
+    // TODO: Once skc supports sklibs, the sources for a binary should be
+    // `Array[]`.
+    res.push(Target(BinTarget(bin.main), bin.name, lib_srcs))
+  };
+
+  build_script_path = Path.join(package_root, "build.sk");
+  if (FileSystem.exists(build_script_path)) {
+    res.push(
+      Target(
+        CustomBuildTarget(),
+        `build-script-${package_name}`,
+        Array[build_script_path],
+      ),
+    )
+  };
+
+  test_srcs = manifest.tests match {
+  | Some(tests) -> tests
+  | _ ->
+    tests_path = Path.join(package_root, "tests");
+    if (FileSystem.exists(tests_path)) {
+      FileSystem.readFilesRecursive(tests_path, f ->
+        f.endsWith(".sk")
+      ).toArray()
+    } else {
+      Array[]
+    }
+  };
+  test_harness = manifest.testHarness.default("SKTest.main");
+  res.push(Target(BinTarget(test_harness), "test", test_srcs));
+
+  res.collect(Array)
+}
+
+private fun toml_dep_to_dependency(
+  name_in_toml: String,
+  toml_dep: TomlManifestDependency,
+  kind: DepKind,
+): Dependency {
+  if (toml_dep.version is None _ && toml_dep.path is None _) {
+    invariant_violation(
+      `dependency ${name_in_toml} specified without providing a local path or a version.`,
+    )
+  };
+
+  source_id = (toml_dep.path, toml_dep.version) match {
+  | (Some(path), _) -> SourceId::from_path(path)
+  | (None(), _) ->
+    invariant_violation("TODO: Package registries not implemented yet")
+  };
+
+  Dependency::create(name_in_toml, source_id, toml_dep.version, kind)
+}
+
+class Target(
+  kind: TargetKind,
+  name: String,
+  srcs: Array<String>,
+) uses Equality, Hashable
+
+base class TargetKind uses Equality, Hashable {
+  children =
+  | LibTarget()
+  | BinTarget(entry_point: String)
+  | TestTarget(entry_point: String)
+  | CustomBuildTarget()
+}
+
+>>>>>>> 41ad3b97 (wip)
 module end;

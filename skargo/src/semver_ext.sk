@@ -1,0 +1,25 @@
+module Semver;
+
+extension class Version uses Equality, Hashable {
+  fun == from Orderable;
+}
+
+extension class Prerelease uses Equality, Hashable {
+  fun == from Orderable;
+}
+
+extension class BuildMetadata uses Equality, Hashable {
+  fun == from Orderable;
+}
+
+extension class VersionReq uses Equality, Hashable {
+  fun hash(): Int {
+    this.toString().hash()
+  }
+
+  fun ==(other: VersionReq): Bool {
+    this.toString() == other.toString()
+  }
+}
+
+module end;

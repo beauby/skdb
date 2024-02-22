@@ -1,5 +1,6 @@
 module Skargo;
 
+<<<<<<< HEAD
 private class Package(manifest: Manifest, manifest_path: String) {
   fun root(): String {
     Path.dirname(this.manifest_path)
@@ -16,7 +17,47 @@ private base class CompileKind uses Show {
   | CompileKindTarget(arch) -> TargetTriple::fromString(arch).toString()
 }
 
+||||||| parent of 41ad3b97 (wip)
+=======
+base class CompileKind uses Equality, Hashable {
+  children =
+  | CompileHost()
+  | CompileTarget(TargetTriple)
+}
+
+class Unit(
+  manifest: Manifest,
+  manifest_path: String,
+  target: Target,
+  kind: CompileKind,
+) uses Equality, Hashable
+
+fun build_unit_roots(
+  manifest: Manifest,
+  manifest_path: String,
+  compile_kind: CompileKind,
+  requested: Array<Target>,
+): Array<Unit> {
+  res = mutable Vector[];
+  for (target in manifest.targets) {
+    if (!requested.isEmpty() && !requested.contains(target)) continue;
+    res.push(Unit(manifest, manifest_path, target, compile_kind))
+  };
+
+  res.collect(Array)
+}
+
+// fun build_unit_graph(roots: Array<Unit>): Map<Unit, Array<Unit>> {
+//   seen = Set::mcreateFromItems(roots);
+//   queue = Vector::mcreateFromItems(roots);
+//   while (!queue.isEmpty()) {
+
+//   }
+// }
+
+>>>>>>> 41ad3b97 (wip)
 private class BuildContext{
+<<<<<<< HEAD
   gctx: GlobalContext,
   package: Package,
   target_kind: CompileKind, // TODO: Move into Unit
@@ -24,6 +65,23 @@ private class BuildContext{
   target_dir: String,
   skc: String, // TODO: class Skc
   state_db: String,
+||||||| parent of 41ad3b97 (wip)
+  env: Env,
+  skc: String,
+  targetDir: String,
+  target: ?TargetTriple,
+  profile: String,
+  stateDb: String,
+  files: Array<String>,
+  deps: Map<String, TomlManifest>,
+=======
+  env: Env,
+  skc: String,
+  targetDir: String, // TODO: Rename to target_dir
+  stateDb: String, // TODO: Rename to state_db
+  roots: Array<Unit>,
+  unit_graph: Map<Unit, Array<Unit>>,
+>>>>>>> 41ad3b97 (wip)
 } {
   static fun create(
     gctx: GlobalContext,
@@ -43,6 +101,22 @@ private class BuildContext{
     | None() -> CompileKindHost()
     };
     skc = Environ.varOpt("SKC").default("skc");
+<<<<<<< HEAD
+||||||| parent of 41ad3b97 (wip)
+    deps = env.getDependencies();
+=======
+
+    manifest_path = Path.join(env.rootDir, kManifestFile);
+    manifest = Manifest::read(manifest_path);
+
+    compile_kind = target
+      .map(t -> CompileTarget(TargetTriple::fromString(t)))
+      .default(CompileHost());
+    // TODO: Narrow down built targets with --bin/--lib.
+    roots = build_unit_roots(manifest, manifest_path, compile_kind, Array[]);
+    unit_graph = build_unit_graph(roots);
+
+>>>>>>> 41ad3b97 (wip)
     BuildContext{
       gctx,
       package,
@@ -50,7 +124,23 @@ private class BuildContext{
       target_profile => profile,
       target_dir,
       skc,
+<<<<<<< HEAD
       state_db => Path.join(target_dir, "state.db"),
+||||||| parent of 41ad3b97 (wip)
+      targetDir,
+      target => target.map(TargetTriple::fromString),
+      profile,
+      stateDb => Path.join(targetDir, "state.db"),
+      files => getFiles(env.manifest, deps).concat(
+        Array[Path.join(targetDir, kVersionFile)],
+      ),
+      deps,
+=======
+      targetDir,
+      stateDb => Path.join(targetDir, "state.db"),
+      roots,
+      unit_graph,
+>>>>>>> 41ad3b97 (wip)
     }
   }
 
@@ -130,4 +220,42 @@ class TargetTriple(
   }
 }
 
+<<<<<<< HEAD
+||||||| parent of 41ad3b97 (wip)
+private fun getTargetDir(rootDir: String, targetOpt: ?String): String {
+  // TODO: Build artifacts in subdirectory corresponding to build profile (dev/release).
+  dir = Path.join(rootDir, kTargetDir);
+  Path.join(dir, targetOpt.default(kDefaultTarget))
+}
+
+private fun getFiles(
+  manifest: TomlManifest,
+  deps: Map<String, TomlManifest>,
+): Array<String> {
+  files = manifest.tests;
+  for (dep in deps) {
+    !files = files.concat(dep.srcs)
+  };
+  files.collect(Array)
+}
+
+=======
+private fun getTargetDir(rootDir: String, targetOpt: ?String): String {
+  // TODO: Build artifacts in subdirectory corresponding to build profile (dev/release).
+  dir = Path.join(rootDir, kTargetDir);
+  Path.join(dir, targetOpt.default(kDefaultTarget))
+}
+
+private fun getFiles(
+  manifest: Manifest,
+  deps: Map<String, Manifest>,
+): Array<String> {
+  files = manifest.tests;
+  for (dep in deps) {
+    !files = files.concat(dep.srcs)
+  };
+  files.collect(Array)
+}
+
+>>>>>>> 41ad3b97 (wip)
 module end;
