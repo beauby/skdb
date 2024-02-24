@@ -79,9 +79,12 @@ fun getVerbosity(args: Cli.ParseResults): ConsoleVerbosity {
   }
 }
 
-fun envCmd(args: Cli.ParseResults, fn: (Cli.ParseResults, Env) ~> void): void {
-  env = Env::create(getVerbosity(args));
-  fn(args, env)
+fun gctxCmd(
+  args: Cli.ParseResults,
+  fn: (Cli.ParseResults, GlobalContext) ~> void,
+): void {
+  gctx = GlobalContext::create(getVerbosity(args));
+  fn(args, gctx)
 }
 
 /********* Build **********/
@@ -91,6 +94,7 @@ fun build(): (Cli.Command, Cli.ParseResults ~> void) {
     Cli.Command("build")
       .short("b")
       .about("Compile a local package")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
       .arg(Cli.StringArg("target").about("Build for the target triple"))
       .arg(
         Cli.StringArg("target-dir").about(
@@ -109,47 +113,56 @@ fun build(): (Cli.Command, Cli.ParseResults ~> void) {
           .about("Build artifacts in release mode, with optimizations"),
       )
       .arg(Cli.StringArg("bin").about("Build only the specified binary")),
-    args ~> envCmd(args, execBuild),
+    args ~> gctxCmd(args, execBuild),
   )
 }
 
-fun execBuild(args: Cli.ParseResults, env: Env): void {
+fun execBuild(args: Cli.ParseResults, gctx: GlobalContext): void {
   bc = BuildContext::create(
-    env,
+    gctx,
+    args.maybeGetString("manifest-path"),
     args.maybeGetString("target"),
     args.maybeGetString("target-dir"),
     getProfile(args),
   );
 
   withTimer(
-    () -> execBuildContext(bc, collectBinaries(args, env)),
-    t -> bc.env.console.status("Finished", `${bc.profile} target(s) in ${t}s`),
+    () -> execBuildContext(bc, collectBinaries(args, gctx)),
+    t ->
+      bc.gctx.console.status(
+        "Finished",
+        `${bc.target_profile} target(s) in ${t}s`,
+      )
+    ,
   );
 }
 
-fun collectBinaries(
-  args: Cli.ParseResults,
-  env: Env,
-): Array<TomlManifestBinary> {
-  args.maybeGetString("bin") match {
-  | Some(name) ->
-    env.manifest.bin.find(b -> b.name == name) match {
-    | Some(bin) -> Array[bin]
-    | None() -> invariant_violation(`Unknown binary ${name}`)
-    }
-  | None() -> env.manifest.bin
-  };
-}
+// fun collectBinaries(
+//   args: Cli.ParseResults,
+//   gctx: GlobalContext,
+// ): Array<Target> {
+//   args.maybeGetString("bin") match {
+//   | Some(name) ->
+//     env.manifest.targets.find(t ->
+//       t.kind is BinTarget _ && t.name == name
+//     ) match {
+//     | Some(bin) -> Array[bin]
+//     | None() -> invariant_violation(`Unknown binary ${name}`)
+//     }
+//   | None() ->
+//     env.manifest.targets.filter(t -> t.kind is BinTarget _).collect(Array)
+//   };
+// }
 
 fun execBuildContext(
   bc: BuildContext,
-  bins: Array<TomlManifestBinary>,
-  building: List<TomlManifest> = List.Nil(),
+  bins: Array<Target>,
+  building: List<Manifest> = List.Nil(),
 ): void {
   checkBuildFiles(bc, false, building);
   genVersionFile(bc);
   for (bin in bins) {
-    compile(bc, bin.name, bin.main)
+    compile(bc, bin, bc.target_dir_for(bin))
   };
 }
 
@@ -172,6 +185,7 @@ fun test(): (Cli.Command, Cli.ParseResults ~> void) {
     Cli.Command("test")
       .short("t")
       .about("Run the tests")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
       .arg(
         Cli.StringArg("filter")
           .positional()
@@ -203,25 +217,29 @@ fun test(): (Cli.Command, Cli.ParseResults ~> void) {
       )
       .arg(Cli.BoolArg("list").about("Display the list of available tests"))
       .arg(Cli.StringArg("junitxml").about("Generate a JUnit XML report")),
-    args ~> envCmd(args, execTest),
+    args ~> gctxCmd(args, execTest),
   )
 }
 
-fun execTest(args: Cli.ParseResults, env: Env): void {
+fun execTest(args: Cli.ParseResults, gctx: GlobalContext): void {
   bc = BuildContext::create(
-    env,
+    gctx,
+    args.maybeGetString("manifest-path"),
     args.maybeGetString("target"),
     args.maybeGetString("target-dir"),
     getProfile(args),
   );
   checkBuildFiles(bc, true, List.Nil());
   genVersionFile(bc);
-  compile(bc, "test", env.manifest.testHarness);
+  test_target = bc.package.manifest.targets
+    .find(t -> t.name == "test")
+    .fromSome();
+  compile(bc, test_target, bc.target_dir_for(test_target));
   filter = args.maybeGetString("filter");
   junitxml = args.maybeGetString("junitxml").map(f -> `--junitxml=${f}`);
   jobs = args.getInt("jobs");
   list = if (args.getBool("list")) Some("--list") else None();
-  testBinary = Path.join(bc.targetDir, "test");
+  testBinary = Path.join(bc.target_dir_for(test_target), "test");
 
   if (FileSystem.exists(testBinary)) {
     Posix.execvp(
@@ -243,6 +261,7 @@ fun check(): (Cli.Command, Cli.ParseResults ~> void) {
       .about(
         "Analyze the current package and report errors, but don't build object files",
       )
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
       .arg(Cli.StringArg("target").about("Check for the target triple"))
       .arg(
         Cli.StringArg("target-dir").about(
@@ -260,16 +279,17 @@ fun check(): (Cli.Command, Cli.ParseResults ~> void) {
           .long("release")
           .about("Build artifacts in release mode, with optimizations"),
       ),
-    args ~> envCmd(args, execCheck),
+    args ~> gctxCmd(args, execCheck),
   )
 }
 
-fun execCheck(args: Cli.ParseResults, env: Env): void {
+fun execCheck(args: Cli.ParseResults, gctx: GlobalContext): void {
   if (env.config.formatOnCheck) {
-    execFmt(args, env)
+    execFmt(args, gctx)
   };
   bc = BuildContext::create(
-    env,
+    gctx,
+    args.maybeGetString("manifest-path"),
     args.maybeGetString("target"),
     args.maybeGetString("target-dir"),
     getProfile(args),
@@ -284,6 +304,7 @@ fun clean(): (Cli.Command, Cli.ParseResults ~> void) {
   (
     Cli.Command("clean")
       .about("Remove the target directory")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
       .arg(Cli.StringArg("target").about("Build for the target triple"))
       .arg(
         Cli.StringArg("target-dir").about(
@@ -301,49 +322,45 @@ fun clean(): (Cli.Command, Cli.ParseResults ~> void) {
           .long("release")
           .about("Build artifacts in release mode, with optimizations"),
       ),
-    args ~> envCmd(args, execClean),
+    args ~> gctxCmd(args, execClean),
   )
 }
 
-fun execClean(args: Cli.ParseResults, env: Env): void {
-  targetDir = args.maybeGetString("target-dir") match {
-  | Some(d) -> d
-  | None() ->
-    dir = Path.join(env.rootDir, kTargetDir);
-    optProfile = args.maybeGetString("profile") match {
-    | Some(p) -> Some(p)
-    | None() if (args.getBool("release")) -> Some(kReleaseProfile)
-    | None() -> None()
-    };
-    (optProfile, args.maybeGetString("target")) match {
-    | (None(), None()) -> dir
-    | (Some(target), None()) -> Path.join(dir, target)
-    | (None(), Some(profile)) ->
-      Path.join(Path.join(dir, kDefaultTarget), profile)
-    | (Some(target), Some(profile)) ->
-      Path.join(Path.join(dir, target), profile)
-    }
-  };
-  run(Array["rm", "-rf", targetDir], env.console)
+fun execClean(args: Cli.ParseResults, gctx: GlobalContext): void {
+  bc = BuildContext::create(
+    gctx,
+    args.maybeGetString("manifest-path"),
+    args.maybeGetString("target"),
+    args.maybeGetString("target-dir"),
+    getProfile(args),
+  );
+  // TODO: Clean only for a specific arch specified with `--target`?
+  run(Array["rm", "-rf", bc.target_dir], gctx.console)
 }
 
 /********* Format **********/
 
 fun format(): (Cli.Command, Cli.ParseResults ~> void) {
   (
-    Cli.Command("fmt").about("Format all files using skfmt"),
-    args ~> envCmd(args, execFmt),
+    Cli.Command("fmt")
+      .about("Format all files using skfmt")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml")),
+    args ~> gctxCmd(args, execFmt),
   )
 }
 
-fun execFmt(_args: Cli.ParseResults, env: Env): void {
-  files = env.manifest.srcs.concat(env.manifest.tests);
-  buildSk = Path.join(env.rootDir, "build.sk");
-  if (FileSystem.exists(buildSk)) {
-    !files = files.concat(Array[buildSk]);
-  };
-  run(Array["skfmt", "-i"].concat(files), env.console);
-  // format ./*.sk
+fun execFmt(args: Cli.ParseResults, gctx: GlobalContext): void {
+  bc = BuildContext::create(
+    gctx,
+    args.maybeGetString("manifest-path"),
+    args.maybeGetString("target"),
+    args.maybeGetString("target-dir"),
+    getProfile(args),
+  );
+  files = FileSystem.readFilesRecursive(bc.package.root(), f ->
+    f.endsWith(".sk")
+  ).toArray();
+  run(Array["skfmt", "-i"].concat(files), gctx.console);
 }
 
 /********* Init **********/
@@ -354,6 +371,7 @@ fun init(): (Cli.Command, Cli.ParseResults ~> void) {
       .about("Create a new skargo package")
       .arg(
         Cli.StringArg("path")
+          .positional()
           .default(".")
           .about("Directory where to perform the initialization"),
       )
@@ -403,11 +421,11 @@ fun execInit(args: Cli.ParseResults): void {
 fun update(): (Cli.Command, Cli.ParseResults ~> void) {
   (
     Cli.Command("update").about("Update dependencies listed in Skargo.lock"),
-    args ~> envCmd(args, execUpdate),
+    args ~> gctxCmd(args, execUpdate),
   )
 }
 
-fun execUpdate(_args: Cli.ParseResults, _env: Env): void {
+fun execUpdate(_args: Cli.ParseResults, _gctx: GlobalContext): void {
   invariant_violation("TODO");
   void
 }
@@ -463,35 +481,36 @@ fun runner(): (Cli.Command, Cli.ParseResults ~> void) {
           .about("Run the binary in release mode"),
       )
       .arg(Cli.StringArg("bin").about("Run the specified binary"))
-      .arg(Cli.StringArg("path").about("Path of the package to run"))
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
       .extra(),
     execRun,
   )
 }
 
-fun execRun(args: Cli.ParseResults): void {
-  env = args.maybeGetString("path") match {
-  | Some(path) ->
-    manifestFile = Path.join(Path.resolve(path), Skargo.kManifestFile);
-    invariant(
-      FileSystem.exists(manifestFile),
-      `Invalid skargo directory ${path}`,
-    );
-    Env::fromFile(manifestFile, getVerbosity(args))
-  | _ -> Env::create(getVerbosity(args))
-  };
-  bins = collectBinaries(args, env);
-  invariant(!bins.isEmpty(), "No binary to run");
-  invariant(bins.size() == 1, "Multiple binary please select one");
-  hostBinary = BuildContext::hostBinary(
-    env,
-    getProfile(args),
-    bins.first().name,
-  );
-  invariant(FileSystem.exists(hostBinary), "No binary to run, build first");
-  cmdArgs = Array[hostBinary].concat(args.extra);
-  env.console.status_verbose("Running", cmdArgs.join(" "));
-  Posix.execvp(cmdArgs)
+fun execRun(_args: Cli.ParseResults): void {
+  // env = args.maybeGetString("path") match {
+  // | Some(path) ->
+  //   manifestFile = Path.join(Path.resolve(path), Skargo.kManifestFile);
+  //   invariant(
+  //     FileSystem.exists(manifestFile),
+  //     `Invalid skargo directory ${path}`,
+  //   );
+  //   Env::fromFile(manifestFile, getVerbosity(args))
+  // | _ -> Env::create(getVerbosity(args))
+  // };
+  // bins = collectBinaries(args, env);
+  // invariant(!bins.isEmpty(), "No binary to run");
+  // invariant(bins.size() == 1, "Multiple binary please select one");
+  // hostBinary = BuildContext::hostBinary(
+  //   env,
+  //   getProfile(args),
+  //   bins.first().name,
+  // );
+  // invariant(FileSystem.exists(hostBinary), "No binary to run, build first");
+  // cmdArgs = Array[hostBinary].concat(args.extra);
+  // env.console.status_verbose("Running", cmdArgs.join(" "));
+  // Posix.execvp(cmdArgs)
+  void
 }
 
 module end;

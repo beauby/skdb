@@ -1,65 +1,133 @@
 module Skargo;
 
+private class Package(manifest: Manifest, manifest_path: String) {
+  fun root(): String {
+    Path.dirname(this.manifest_path)
+  }
+}
+
+private base class CompileKind uses Show {
+  children =
+  | CompileKindHost()
+  | CompileKindTarget(String)
+
+  fun toString(): String
+  | CompileKindHost() -> "host"
+  | CompileKindTarget(arch) -> TargetTriple::fromString(arch).toString()
+}
+
 private class BuildContext{
-  env: Env,
-  skc: String,
-  targetDir: String,
-  target: ?TargetTriple,
-  profile: String,
-  stateDb: String,
-  files: Array<String>,
-  deps: Map<String, TomlManifest>,
+  gctx: GlobalContext,
+  package: Package,
+  target_kind: CompileKind, // TODO: Move into Unit
+  target_profile: String, // TODO: Move into Unit
+  target_dir: String,
+  skc: String, // TODO: class Skc
+  state_db: String,
 } {
   static fun create(
-    env: Env,
-    target: ?String,
-    targetDirOpt: ?String,
+    gctx: GlobalContext,
+    manifest_path_opt: ?String,
+    target_opt: ?String,
+    target_dir_opt: ?String,
     profile: String,
   ): BuildContext {
-    targetDir = targetDirOpt match {
+    manifest_path = manifest_path_opt.default(kManifestFile);
+    package = Package(Manifest::read(manifest_path), manifest_path);
+    target_dir = target_dir_opt match {
     | Some(d) -> d
-    | None() -> Path.join(getTargetDir(env.rootDir, target), profile)
+    | None() -> Path.join(package.root(), "target")
+    };
+    target_kind = target_opt match {
+    | Some(t) -> CompileKindTarget(t)
+    | None() -> CompileKindHost()
     };
     skc = Environ.varOpt("SKC").default("skc");
-    deps = env.getDependencies();
     BuildContext{
-      env,
+      gctx,
+      package,
+      target_kind,
+      target_profile => profile,
+      target_dir,
       skc,
-      targetDir,
-      target => target.map(TargetTriple::fromString),
-      profile,
-      stateDb => Path.join(targetDir, "state.db"),
-      files => getFiles(env.manifest, deps).concat(
-        Array[Path.join(targetDir, kVersionFile)],
-      ),
-      deps,
+      state_db => Path.join(target_dir, "state.db"),
     }
   }
 
-  static fun hostBinary(env: Env, profile: String, binary: String): String {
-    Path.join(Path.join(getTargetDir(env.rootDir, None()), profile), binary);
+  fun target_dir_for_arch(arch: String): String {
+    Path.join(this.target_dir, arch, this.target_profile)
+  }
+
+  fun target_dir_for(target: Target): String {
+    arch = if (target.for_host) {
+      "host"
+    } else {
+      this.target_kind.toString()
+    };
+    this.target_dir_for_arch(arch)
+  }
+
+  fun target_triple_for(target: Target): ?String {
+    if (target.for_host) return None();
+    this.target_kind match {
+    | CompileKindTarget(t) -> Some(t)
+    | _ -> None()
+    }
+  }
+
+  // static fun hostBinary(env: Env, profile: String, binary: String): String {
+  //   Path.join(Path.join(getTargetDir(env.rootDir, None()), profile), binary);
+  // }
+
+  // TODO: Deprecate
+  fun isWasm32(): Bool {
+    this.target_kind match {
+    | CompileKindHost() -> false
+    | CompileKindTarget(t) -> TargetTriple::fromString(t).isWasm32()
+    }
+  }
+}
+
+class TargetTriple(
+  machine: String,
+  vendor: ?String,
+  operatingsystem: ?String,
+) uses Orderable, Show {
+  //
+  static fun fromString(str: String): TargetTriple {
+    components = str.split("-");
+    if (components.isEmpty() || components.size() > 3) {
+      invariant_violation("Invalid target triplet string " + str)
+    };
+    TargetTriple(
+      components[0],
+      components.maybeGet(1) match {
+      | Some(v) if (v != "unknown") -> Some(v)
+      | _ -> None()
+      },
+      components.maybeGet(2) match {
+      | Some(v) if (v != "unknown") -> Some(v)
+      | _ -> None()
+      },
+    )
   }
 
   fun isWasm32(): Bool {
-    this.target.map(t -> t.isWasm32()).default(false);
+    this.machine == "wasm32"
   }
-}
 
-private fun getTargetDir(rootDir: String, targetOpt: ?String): String {
-  // TODO: Build artifacts in subdirectory corresponding to build profile (dev/release).
-  dir = Path.join(rootDir, kTargetDir);
-  Path.join(dir, targetOpt.default(kDefaultTarget))
-}
+  fun allows(target: TargetTriple): Bool {
+    this.machine == target.machine &&
+      this.vendor.default("unknown") == target.vendor.default("unknown") &&
+      this.operatingsystem.default("unknown") ==
+        target.operatingsystem.default("unknown")
+  }
 
-private fun getFiles(
-  manifest: TomlManifest,
-  deps: Map<String, TomlManifest>,
-): Array<String> {
-  files = manifest.tests;
-  for (dep in deps) {
-    !files = files.concat(dep.srcs)
-  };
-  files.collect(Array)
+  fun toString(): String {
+    `${this.machine}-${this.vendor.default(
+      "unknown",
+    )}-${this.operatingsystem.default("unknown")}`
+  }
 }
 
 module end;

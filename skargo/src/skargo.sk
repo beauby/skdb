@@ -5,66 +5,49 @@ const kVersionFile: String = "version.sk";
 const kDevProfile: String = "dev";
 const kReleaseProfile: String = "release";
 const kDebugProfile: String = "debug";
-const kUserConfiguration: String = ".skargoconfig";
 const kDefaultTarget: String = "host";
 const kTargetDir: String = "target";
 
 class SystemCallException(code: Int, error: ?String = None()) extends Exception
 
-private class UserConfig{
-  formatOnCheck: Bool = false,
-  autoRemoveState: Bool = false,
-  repositories: Array<String> = Array[],
-} {
-  fun update(json: JSON.Object, dir: String): UserConfig {
-    json.maybeGetBool("auto-remove-state").each(v -> !this.autoRemoveState = v);
-    json.maybeGetBool("format-on-check").each(v -> !this.formatOnCheck = v);
-    json.maybeGetArray("repositories").each(v ->
-      !this.repositories = v.value
-        .map(jv -> Path.join(dir, jv.expectString()))
-        .toArray()
-    );
-    this;
-  }
-}
+// private class Env{
+//   rootDir: String,
+//   manifest: Manifest,
+//   console: Console,
+//   config: UserConfig,
+// } {
+//   static fun create(verbosity: ConsoleVerbosity): Env {
+//     rootDir = findRootDir();
+//     config = findUserConfig();
+//     Env{
+//       rootDir,
+//       manifest => Manifest::read(Path.join(rootDir, kManifestFile)),
+//       console => Console(verbosity),
+//       config,
+//     }
+//   }
 
-private class Env{
-  rootDir: String,
-  manifest: TomlManifest,
-  console: Console,
-  config: UserConfig,
-} {
-  static fun create(verbosity: ConsoleVerbosity): Env {
-    rootDir = findRootDir();
-    config = findUserConfig();
-    Env{
-      rootDir,
-      manifest => TomlManifest::read(Path.join(rootDir, kManifestFile)),
-      console => Console(verbosity),
-      config,
-    }
-  }
+//   fun getDependencies(): Map<String, Manifest> {
+//     // TODO When we start having remote repositories, this will also download the dependencies.
+//     getDependencies(this.manifest, this.config.repositories) match {
+//     | Success(v) -> v
+//     | Failure(e) -> throw e
+//     };
+//   }
 
-  fun getDependencies(): Map<String, TomlManifest> {
-    // TODO When we start having remote repositories, this will also download the dependencies.
-    getDependencies(this.manifest, this.config.repositories) match {
-    | Success(v) -> v
-    | Failure(e) -> throw e
-    };
-  }
+//   static fun fromFile(path: String, verbosity: ConsoleVerbosity): Env {
+//     rootDir = Path.dirname(path);
+//     config = findUserConfig(Some(rootDir));
+//     Env{
+//       rootDir,
+//       manifest => Manifest::read(path),
+//       console => Console(verbosity),
+//       config,
+//     }
+//   }
+// }
 
-  static fun fromFile(path: String, verbosity: ConsoleVerbosity): Env {
-    rootDir = Path.dirname(path);
-    config = findUserConfig(Some(rootDir));
-    Env{
-      rootDir,
-      manifest => TomlManifest::read(path),
-      console => Console(verbosity),
-      config,
-    }
-  }
-}
-
+// TODO: Support `--manifest-path`.
 private fun findRootDir(): String {
   path = getcwd();
 
@@ -90,31 +73,6 @@ private fun profileOptions(profile: String): Array<String> {
   } else {
     invariant_violation("Unrecognized profile " + profile)
   }
-}
-
-private fun findUserConfig(optPath: ?String = None()): UserConfig {
-  configFiles = mutable Vector<String>[];
-  path = optPath.default(getcwd());
-  loop {
-    file = Path.join(path, kUserConfiguration);
-    if (FileSystem.exists(file)) {
-      configFiles.push(file)
-    };
-    if (Path.isRoot(path)) {
-      break void;
-    };
-    !path = Path.parentname(path)
-  };
-  config = UserConfig{};
-  configFiles.reversed().each(cFile ->
-    try {
-      json = JSON.decode(FileSystem.readTextFile(cFile)).expectObject();
-      !config = config.update(json, Path.parentname(cFile));
-    } catch {
-    | _exn -> void
-    }
-  );
-  config
 }
 
 private fun run(args: Array<String>, console: Console): void {
@@ -160,27 +118,30 @@ fun isMappingError(code: Int): Bool {
 
 private fun invokeSkc(
   bc: BuildContext,
+  target: Target,
   args: Array<String>,
   retry: Bool = true,
 ): void {
-  targetFlag = bc.target.map(t -> `--target=${t}`);
-  if (!FileSystem.exists(bc.stateDb)) {
+  targetFlag = bc.target_triple_for(target);
+  if (!FileSystem.exists(bc.state_db)) {
     // TODO: Use stdlib abstraction instead of relying on the shell.
-    _ = system("mkdir -p " + bc.targetDir);
+    _ = system("mkdir -p " + bc.target_dir);
     // TODO: Initialize with empty file list?
     run(
-      Array[bc.skc, "--init", bc.stateDb, "--check"].concat(
+      Array[bc.skc, "--init", bc.state_db, "--check"].concat(
         Array[targetFlag].filterNone(),
-      ).concat(bc.files),
-      bc.env.console,
+      ).concat(target.srcs),
+      bc.gctx.console,
     )
   };
   try {
     run(
-      Array[bc.skc, "--data", bc.stateDb].concat(Array[targetFlag].filterNone())
+      Array[bc.skc, "--data", bc.state_db].concat(
+        Array[targetFlag].filterNone(),
+      )
         .concat(args)
-        .concat(bc.files),
-      bc.env.console,
+        .concat(target.srcs),
+      bc.gctx.console,
     )
   } catch {
   | SystemCallException(
@@ -188,30 +149,37 @@ private fun invokeSkc(
     _,
   ) if (bc.env.config.autoRemoveState && retry && isMappingError(code)) ->
     // TODO check the 6 origin
-    run(Array["rm", bc.stateDb], bc.env.console);
-    invokeSkc(bc, args, false)
+    run(Array["rm", bc.state_db], bc.gctx.console);
+    invokeSkc(bc, target, args, false)
   | exn -> throw exn
   }
 }
 
-private fun compile(bc: BuildContext, binName: String, main: String): void {
-  output = bc.target match {
-  | Some(t) if (t.isWasm32()) -> binName + ".wasm"
-  | _ -> binName
+private fun compile(bc: BuildContext, target: Target, out_dir: String): void {
+  main = target.kind match {
+  | BinTarget(main) -> main
+  | _ -> invariant_violation("Expected binary target")
+  };
+  output = bc.target_kind match {
+  | CompileKindTarget(
+    t,
+  ) if (!target.for_host && TargetTriple::fromString(t).isWasm32()) ->
+    target.name + ".wasm"
+  | _ -> target.name
   };
   invokeSkc(
     bc,
+    target,
     Array[
       "--export-function-as",
       `${main}=skip_main`,
       "-o",
-      Path.join(bc.targetDir, output),
-    ].concat(profileOptions(bc.profile)),
+      Path.join(out_dir, output),
+    ].concat(profileOptions(bc.target_profile)),
   )
 }
 
 private fun genVersionFile(bc: BuildContext): void {
-  _ = system("mkdir -p " + bc.targetDir);
   // TODO: Ensure cwd.
   p = System.subprocess(Array["git", "rev-parse", "--short", "HEAD"]);
   hash = p.exitstatus match {
@@ -225,23 +193,27 @@ private fun genVersionFile(bc: BuildContext): void {
     print_error_raw(p.stderr);
     invariant_violation("error")
   };
-  kTarget = bc.target.map(t -> t.toString()).default("");
+  kTarget = bc.target_kind.toString();
+  target_dir = bc.target_dir_for_arch(kTarget);
+  _ = system("mkdir -p " + target_dir);
   kWasm32 = bc.isWasm32();
   // Workaround for conditional compilation, but we should not rely on it long term
   contents = `module SkargoVersion;
 const kVersion: String = "${
-    bc.env.manifest.version
+    bc.package.manifest.package_id.version
   }";
 const kCommit: String = "${hash}";
 const kProfile: String = "${
-    bc.profile
+    bc.target_profile
   }";
-const kTarget: String = "${kTarget}";
+const kTarget: String = "${
+    bc.target_kind
+  }";
 const kWasm32: Bool = ${kWasm32};
 module end;
 `;
 
-  FileSystem.writeTextFile(Path.join(bc.targetDir, kVersionFile), contents)
+  FileSystem.writeTextFile(Path.join(target_dir, kVersionFile), contents)
 }
 
 private fun pascalCase(name: String): String {
@@ -291,14 +263,14 @@ private fun generateManifestTemplate(
 fun checkBuildFiles(
   bc: BuildContext,
   test: Bool,
-  building: List<TomlManifest>,
+  building: List<Manifest>,
 ): void {
   // TODO manage when same dependency added multiple time with different name
   links = SortedSet[];
   libraries = mutable Vector[];
   preambles = mutable Vector[];
   bc.deps.each((_k, v) -> {
-    if (!building.any(e -> v.name == e.name)) {
+    if (!building.any(e -> v.package_id.name == e.package_id.name)) {
       !links = checkBuildFile(
         bc,
         v,
@@ -323,116 +295,142 @@ fun checkBuildFiles(
 
 fun checkBuildFile(
   bc: BuildContext,
-  dependency: TomlManifest,
+  manifest: Manifest,
   links: SortedSet<String>,
   libraries: mutable Vector<String>,
   preambles: mutable Vector<String>,
   test: Bool,
-  building: List<TomlManifest>,
+  building: List<Manifest>,
 ): SortedSet<String> {
   // TODO manage version
-  skbuildPath = Path.join(dependency.path, "build.sk");
-  targetDir = Path.join(bc.targetDir, `deps/${dependency.name}`);
-  optCmd = if (FileSystem.exists(skbuildPath)) {
-    _ = system("mkdir -p " + targetDir);
-    bin = TomlManifestBinary(
-      dependency.name + "Build",
-      `${pascalCase(dependency.name)}Build.main`,
-    );
-    bManifest = TomlManifest{
-      name => dependency.name + "_build",
-      path => targetDir,
-      version => dependency.version,
-      srcs => Array[skbuildPath],
-      tests => Array[],
-      testHarness => "SKTest.main",
-      dependencies => dependency.buildDependencies,
-      buildDependencies => Map[],
-      bin => Array[bin],
-    };
-    env = Env{
-      rootDir => targetDir,
-      manifest => bManifest,
-      console => bc.env.console,
-      config => bc.env.config,
-    };
-    deps = env.getDependencies();
-    sbc = BuildContext{
-      env,
-      skc => bc.skc,
-      targetDir => bc.targetDir,
-      target => None(),
-      profile => bc.profile,
-      stateDb => Path.join(targetDir, "state.db"),
-      files => getFiles(env.manifest, deps).concat(
-        Array[Path.join(bc.targetDir, kVersionFile)],
-      ),
-      deps,
-    };
-    bc.deps.each((_k, v) -> _ = Environ.set_var(`PCK_${v.name}`, v.path));
-    execBuildContext(sbc, bManifest.bin, List.Cons(dependency, building));
-    binPath = Path.join(bc.targetDir, bin.name);
-    Environ.set_var("OUT_DIR", targetDir);
-    Environ.set_var("PCK_DIR", dependency.path);
-    Environ.set_var("NAME", dependency.name);
-    Environ.set_var("PROFILE", bc.profile);
-    Environ.set_var(
-      "VERBOSE",
-      (bc.env.console.verbosity >= VerbosityVerbose()).toString(),
-    );
-    Environ.set_var("TEST", test.toString());
-    bc.target match {
-    | Some(t) -> Environ.set_var("TARGET", t.toString())
-    | _ -> Environ.remove_var("TARGET")
-    };
-    Some(Array[binPath])
-  } else {
-    None()
-  };
-  optCmd.each(cmd -> {
-    _ = system("mkdir -p " + targetDir);
-    buffer = "";
-    onLine = line -> {
-      if (line.startsWith("skargo:")) {
-        artifact = line.splitFirst(":").i1;
-        if (artifact.startsWith("library=")) {
-          libraries.push(artifact.substring(artifact.getIter().drop(8)));
-        } else if (artifact.startsWith("preamble=")) {
-          preambles.push(artifact.substring(artifact.getIter().drop(9)));
-        } else if (artifact.startsWith("link=")) {
-          !links = links.set(artifact.substring(artifact.getIter().drop(5)));
-        }
-      }
-    };
-    if (bc.env.console.verbosity >= VerbosityVerbose()) {
-      print_error(`>> ${cmd.join(" ")}`)
-    };
-    p = System.subprocess(
-      cmd,
-      str -> {
-        lines = (buffer + str).split("\n");
-        for (idx in Range(0, lines.size() - 1)) {
-          onLine(lines[idx])
-        }
-      },
-      str ->
-        if (bc.env.console.verbosity >= VerbosityVerbose()) {
-          print_error_raw(str)
-        }
-      ,
-    );
-    if (!buffer.isEmpty()) {
-      onLine(buffer)
-    };
-    if (!p.success()) {
-      if (bc.env.console.verbosity < VerbosityVerbose()) {
-        print_raw(p.stdout);
-        print_error_raw(p.stderr);
+  for (target in manifest.targets) {
+    if (target.kind is CustomBuildTarget _) {
+      if (target.srcs.size() != 1) {
+        invariant_violation("Expected only one `build.sk` source for target")
       };
-      throw SystemCallException(p.exitcode())
-    };
-  });
+      skbuildPath = target.srcs[0];
+      target_dir = Path.join(
+        bc.target_dir_for(target),
+        "build",
+        manifest.package_id.name + "-build",
+      );
+      _ = system("mkdir -p " + target_dir);
+      // bin = TomlBinary(
+      //   manifest.package_id.name + "Build",
+      //   `${pascalCase(manifest.package_id.name)}Build.main`,
+      // );
+      // bManifest = Manifest{
+      //   package_id => manifest.package_id with {
+      //     name => manifest.package_id.name + "_build",
+      //   },
+      //   path => targetDir,
+      //   dependencies => manifest.dependencies
+      //     .filter(d -> d.kind is BuildDep _)
+      //     .collect(Array),
+      //   targets => Array[Target()],
+      // };
+      // env = Env{
+      //   rootDir => targetDir,
+      //   manifest => bManifest,
+      //   console => bc.gctx.console,
+      //   config => bc.env.config,
+      // };
+      deps = getDependencies(Array[manifest], /* build = */ true);
+      // sbc = BuildContext{
+      //   env,
+      //   skc => bc.skc,
+      //   targetDir => bc.targetDir,
+      //   target => None(),
+      //   profile => bc.profile,
+      //   state_db => Path.join(targetDir, "state.db"),
+      //   files => getFiles(bc, env.manifest, deps).concat(
+      //     Array[Path.join(bc.targetDir, kVersionFile)],
+      //   ),
+      //   deps,
+      // };
+      deps.each((_k, v) ->
+        _ = Environ.set_var(`PCK_${v.package_id.name}`, v.path)
+      );
+      execBuildContext(sbc, bManifest.bin, List.Cons(dependency, building));
+      binPath = Path.join(bc.targetDir, bin.name);
+      Environ.set_var("OUT_DIR", targetDir);
+      Environ.set_var("PCK_DIR", dependency.path);
+      Environ.set_var("NAME", dependency.name);
+      Environ.set_var("PROFILE", bc.profile);
+      Environ.set_var(
+        "VERBOSE",
+        (bc.gctx.console.verbosity >= VerbosityVerbose()).toString(),
+      );
+      Environ.set_var("TEST", test.toString());
+      bc.target match {
+      | Some(t) -> Environ.set_var("TARGET", t.toString())
+      | _ -> Environ.remove_var("TARGET")
+      };
+
+      _ = system("mkdir -p " + targetDir);
+      buffer = "";
+      onLine = line -> {
+        if (line.startsWith("skargo:")) {
+          artifact = line.splitFirst(":").i1;
+          if (artifact.startsWith("library=")) {
+            libraries.push(artifact.substring(artifact.getIter().drop(8)));
+          } else if (artifact.startsWith("preamble=")) {
+            preambles.push(artifact.substring(artifact.getIter().drop(9)));
+          } else if (artifact.startsWith("link=")) {
+            !links = links.set(artifact.substring(artifact.getIter().drop(5)));
+          }
+        }
+      };
+      if (bc.gctx.console.verbosity >= VerbosityVerbose()) {
+        print_error(`>> ${binPath}`)
+      };
+      p = System.subprocess(
+        binPath,
+        str -> {
+          lines = (buffer + str).split("\n");
+          for (idx in Range(0, lines.size() - 1)) {
+            onLine(lines[idx])
+          }
+        },
+        str ->
+          if (bc.gctx.console.verbosity >= VerbosityVerbose()) {
+            print_error_raw(str)
+          }
+        ,
+      );
+      if (!buffer.isEmpty()) {
+        onLine(buffer)
+      };
+      if (!p.success()) {
+        if (bc.gctx.console.verbosity < VerbosityVerbose()) {
+          print_raw(p.stdout);
+          print_error_raw(p.stderr);
+        };
+        throw SystemCallException(p.exitcode())
+      };
+    }
+  };
   links
+}
+
+private fun getFiles(
+  bc: BuildContext,
+  target: Target,
+  deps: Map<String, Manifest>,
+): Array<String> {
+  // TODO: This is dirty but temporary.
+  version_file = Path.join(bc.target_dir_for(target), kVersionFile);
+  files = target.srcs.concat(Array[version_file]);
+  for (dep in deps) {
+    // NOTE: Since we currently do not have "library" targets, we're using an ugly
+    // hack consisting of using the `tests` targets (always defined, and always
+    // containing all sources) as a proxy.
+    dep_srcs = dep.targets
+      .find(t -> t.kind is BinTarget _ && t.name == "test")
+      .fromSome().srcs;
+    !files = files.concat(dep_srcs)
+  };
+  files
 }
 
 module end;
