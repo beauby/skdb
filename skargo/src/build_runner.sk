@@ -58,7 +58,7 @@ class BuildRunner(
   }
 
   private fun compile_build_script(unit: Unit): void {
-    print_error("TODO " + unit.target.name)
+    this.skc(unit);
   }
 
   private fun run_build_script(unit: Unit): void {
@@ -99,9 +99,53 @@ class BuildRunner(
     }
   }
 
-  private fun skc(_unit: Unit): void {
-    invariant_violation("TODO")
+  private fun skc(unit: Unit): void {
+    args = mutable Vector[this.bctx.skc];
+    target_flag = unit.kind match {
+    | CompileKindHost() -> void
+    | CompileKindTarget(t) -> args.push(`--target=${t}`)
+    };
+    // TODO: state.db
+
+    for (file in tmp_get_files(unit, this.bctx.unit_graph)) {
+      args.push(file)
+    };
+
+    this.bctx.gctx.console.status_verbose(
+      "Running",
+      "`" + args.join(" ") + "`",
+    );
+
+    (stdout_cb, stderr_cb) = if (
+      this.bctx.gctx.console.verbosity >= VerbosityProlix()
+    ) {
+      (print_raw, print_error_raw)
+    } else {
+      ((_) -> void, (_) -> void)
+    };
+
+    p = System.subprocess(args.collect(Array), stdout_cb, stderr_cb);
+    if (!p.success()) {
+      this.bctx.gctx.console.error(
+        "command exited with non-zero status\n\n" +
+          "Caused by:\n" +
+          "  process did not exit successfully: \`" +
+          args[0] +
+          `\` (exit status: ${p.exitcode()})\n` +
+          "  --- stdout\n" +
+          p.stdout.split("\n").map(l -> "  " + l).join("\n") +
+          "\n" +
+          "  --- stderr\n" +
+          p.stderr.split("\n").map(l -> "  " + l).join("\n") +
+          "\n",
+      );
+      throw SystemCallException(p.exitcode());
+    }
   }
+}
+
+fun tmp_get_files(unit: Unit, unit_graph: UnitGraph): Array<String> {
+  seen = mutable Set<Unit>;
 }
 
 private fun hash_of(

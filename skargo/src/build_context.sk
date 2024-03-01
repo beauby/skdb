@@ -62,33 +62,6 @@ private class BuildContext{
 
     queue.reversed().collect(Array)
   }
-  // fun target_dir_for_arch(arch: String): String {
-  //   Path.join(this.target_dir, arch, this.profile)
-  // }
-  // fun target_dir_for(unit: Unit): String {
-  //   arch = if (unit.target.for_host) {
-  //     "host"
-  //   } else {
-  //     this.target_dir_for_arch(arch)
-  //   }
-  // }
-  // fun target_triple_for(target: Target): ?String {
-  //   if (target.for_host) return None();
-  //   this.target_kind match {
-  //   | CompileKindTarget(t) -> Some(t)
-  //   | _ -> None()
-  //   }
-  // }
-  // static fun hostBinary(env: Env, profile: String, binary: String): String {
-  //   Path.join(Path.join(getTargetDir(env.rootDir, None()), profile), binary);
-  // }
-  // TODO: Deprecate
-  // fun isWasm32(): Bool {
-  //   this.target_kind match {
-  //   | CompileKindHost() -> false
-  //   | CompileKindTarget(t) -> TargetTriple::fromString(t).isWasm32()
-  //   }
-  // }
 }
 
 // TODO: Return Result<...>
