@@ -2,95 +2,84 @@ module Skargo;
 
 private fun fetchLatestManifest(
   dep: Dependency,
-  reps: Array<String>,
-): ?Manifest {
+  // reps: Array<String>,
+): ?Package {
   dep.source_id.kind match {
   | PathSource() ->
-    return Some(Manifest::read(Path.join(dep.source_id.url, kManifestFile)))
+    path = Path.join(dep.source_id.url, kManifestFile);
+    Some(Package::read(path))
   };
-
   // Fetch highest available version within range.
-  optLast: ?Manifest = None();
-  for (repo in reps) {
-    dir = Path.join(repo, dep.name);
-    mFile = Path.join(dir, kManifestFile);
-    if (FileSystem.exists(mFile)) {
-      manifest = Manifest::read(mFile);
-      if (dep.req.matches(manifest.package_id.version)) {
-        !optLast = optLast match {
-        | Some(
-          last,
-        ) if (
-          dep.req.matches(last.package_id.version) &&
-          last.package_id.version < manifest.package_id.version
-        ) ->
-          Some(manifest)
-        | None() -> Some(manifest)
-        | _ -> optLast
-        }
-      };
-    }
-  };
-  optLast
-}
-
-// TODO: Backtrack on conflict, and try previous versions.
-private fun solveDependencies(
-  manifest: Manifest,
-  solved: mutable Map<String, Manifest>,
-  reps: Array<String>,
-  build: Bool,
-): ?UnsatisfiableDependency {
-  dependencies = if (build) {
-    manifest.build_dependencies
-  } else {
-    manifest.dependencies
-  };
-  for (dep in dependencies) {
-    // FIXME: In case of Path constraints, there can be a mismatch between
-    // the name of the dependency specified in Skargo.toml and the name of
-    // the package depended on in its own Skargo.toml.
-    if (solved.containsKey(dep.name)) {
-      fetchLatestManifest(dep, reps) match {
-      | Some(
-        depManifest,
-      ) if (
-        depManifest.package_id.version == solved[dep.name].package_id.version
-      ) ->
-        void
-      | _ -> return Some(UnsatisfiableDependency(dep))
-      }
-    } else {
-      fetchLatestManifest(dep, reps) match {
-      | Some(depManifest) ->
-        solved.set(dep.name, depManifest);
-        res = solveDependencies(depManifest, solved, reps);
-        if (res.isSome()) {
-          return res
-        }
-      | _ -> return Some(UnsatisfiableDependency(dep))
-      }
-    };
-  };
-  None()
+  // optLast: ?Manifest = None();
+  // for (repo in reps) {
+  //   dir = Path.join(repo, dep.name);
+  //   mFile = Path.join(dir, kManifestFile);
+  //   if (FileSystem.exists(mFile)) {
+  //     manifest = Manifest::read(mFile);
+  //     if (dep.req.matches(manifest.package_id.version)) {
+  //       !optLast = optLast match {
+  //       | Some(
+  //         last,
+  //       ) if (
+  //         dep.req.matches(last.package_id.version) &&
+  //         last.package_id.version < manifest.package_id.version
+  //       ) ->
+  //         Some(manifest)
+  //       | None() -> Some(manifest)
+  //       | _ -> optLast
+  //       }
+  //     };
+  //   }
+  // };
+  // optLast
 }
 
 class UnsatisfiableDependency(dep: Dependency) extends Exception {}
 
-fun getDependencies(
-  manifests: Array<Manifest>,
-  build: Bool = false,
-  reps: Array<String> = Array[],
-): Map<String, Manifest> {
-  result = Map::mcreateFromItems(manifests.map(m -> (m.package_id.name, m)));
-  for (m in manifests) {
-    solveDependencies(m, result, reps, build) match {
-    | Some(e) -> throw e
-    | None() -> void
+// TODO: Backtrack on conflict, and try previous versions.
+fun activate(
+  package: Package,
+  solved: mutable Map<String, Package>,
+): Result<void, UnsatisfiableDependency> {
+  if (solved.containsKey(package.manifest.package_id.name)) {
+    return Success(void)
+  };
+  solved.set(package.manifest.package_id.name, package);
+
+  for (dep in package.manifest.dependencies) {
+    solved.maybeGet(dep.name) match {
+    | Some(dep_package) ->
+      if (!dep.req.matches(dep_package.manifest.package_id.version)) {
+        return Failure(UnsatisfiableDependency(dep))
+      }
+    | None() ->
+      fetchLatestManifest(dep) match {
+      | Some(dep_package) ->
+        if (dep_package.manifest.package_id.name != dep.name) {
+          invariant_violation(
+            `Package name mismatch (${dep.name} vs ${
+              dep_package.manifest.package_id.name
+            })`,
+          )
+        };
+        activate(dep_package, solved) match {
+        | Failure(err) -> return Failure(err)
+        | Success _ -> void
+        }
+      | None() -> return Failure(UnsatisfiableDependency(dep))
+      }
     }
   };
 
-  result.chill()
+  Success(void)
+}
+
+fun resolve(package: Package): Map<String, Package> {
+  result = mutable Map[];
+  activate(package, result) match {
+  | Success _ -> result.chill()
+  | Failure(err) -> throw err
+  }
 }
 
 module end;

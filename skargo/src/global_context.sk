@@ -4,12 +4,23 @@ class GlobalContext{
   // // Location of the user's config.
   // home_path: String,
   console: Console,
-  // // Path from which `skargo` was invoked.
-  // cwd: String,
+  /// Path from which `skargo` was invoked
+  cwd: String,
+  /// Target directory via resolved Cli parameter
+  target_dir: ?String,
   // skargo_exe: String,
 } {
-  static fun create(verbosity: ConsoleVerbosity): GlobalContext {
-    GlobalContext{console => Console(verbosity)}
+  static fun create(args: Cli.ParseResults): GlobalContext {
+    // TODO: Properly support -q/--quiet for VerbosityQuiet, -v for VerbosityVerbose,
+    // and -vv for VerbosityProlix.
+    verbosity = if (args.getBool("verbose")) {
+      VerbosityProlix()
+    } else {
+      VerbosityNormal()
+    };
+    target_dir = args.maybeGetString("target-dir");
+
+    GlobalContext{console => Console(verbosity), cwd => getcwd(), target_dir}
   }
 }
 // const kUserConfiguration: String = ".skargoconfig";

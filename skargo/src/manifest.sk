@@ -61,13 +61,13 @@ class Dependency(
   }
 }
 
-class SourceId(url: String, kind: SourceKind) {
+class SourceId(url: String, kind: SourceKind) uses Equality {
   static fun from_path(path: String): SourceId {
     SourceId(path, PathSource())
   }
 }
 
-base class SourceKind {
+base class SourceKind uses Equality {
   children =
   | PathSource()
   // | GitSource()
@@ -112,9 +112,11 @@ class TomlManifest{
       arr.map(x -> x.expectString())
     );
 
-    dependencies = toml.getTable("dependencies").map.map((_, v) ->
-      TomlDependency::fromTOML(basePath, v)
-    );
+    dependencies = toml.maybeGetTable("dependencies") match {
+    | Some(TOML.Table(t)) ->
+      t.map.map((_, v) -> TomlDependency::fromTOML(basePath, v))
+    | None() -> Map[]
+    };
 
     build_dependencies = toml.maybeGetTable("build-dependencies") match {
     | Some(bDependencies) ->
@@ -181,21 +183,64 @@ class Manifest(
       manifest,
     )
   }
+
+  fun lib_target(): Target {
+    this.targets.find(t -> t.is_lib()).fromSome()
+  }
+
+  fun build_script_target(): ?Target {
+    this.targets.find(t -> t.is_build_script())
+  }
+
+  fun test_target(): ?Target {
+    this.targets.find(t -> t.is_test())
+  }
 }
 
-class PackageId(name: String, version: Semver.Version, source_id: SourceId)
+class PackageId(
+  name: String,
+  version: Semver.Version,
+  source_id: SourceId,
+) uses Equality, Hashable {
+  // TODO: Proper hash
+  fun hash(): Int {
+    `${this.name}@${this.version}`.hash()
+  }
+}
 
 class Target(
   kind: TargetKind,
   name: String,
   srcs: Array<String>,
   for_host: Bool,
-)
+) uses Equality, Hashable {
+  fun hash(): Int {
+    // FIXME
+    0
+  }
 
-base class TargetKind {
+  fun is_lib(): Bool {
+    this.kind is LibTarget _
+  }
+
+  fun is_bin(): Bool {
+    this.kind is BinTarget _
+  }
+
+  fun is_build_script(): Bool {
+    this.kind is CustomBuildTarget _
+  }
+
+  fun is_test(): Bool {
+    this.kind is TestTarget _
+  }
+}
+
+base class TargetKind uses Equality, Hashable {
   children =
-  // | LibTarget()
+  | LibTarget()
   | BinTarget(entry_point: String)
+  | TestTarget(entry_point: String)
   | CustomBuildTarget()
 }
 
@@ -208,9 +253,12 @@ private fun manifest_targets(
   srcs = FileSystem.readFilesRecursive(Path.join(package_root, "src"), f ->
     f.endsWith(".sk")
   ).toArray();
+
+  res.push(Target(LibTarget(), "lib", srcs, /* for_host = */ false));
+
   for (bin in manifest.bin) {
     res.push(
-      Target(BinTarget(bin.main), bin.name, srcs, /* for_host = */ false),
+      Target(BinTarget(bin.main), bin.name, Array[], /* for_host = */ false),
     )
   };
 
@@ -240,7 +288,7 @@ private fun manifest_targets(
   };
   test_harness = manifest.test_harness.default(kDefaultTestHarness);
   res.push(
-    Target(BinTarget(test_harness), "test", test_srcs, /* for_host = */ false),
+    Target(TestTarget(test_harness), "test", test_srcs, /* for_host = */ false),
   );
 
   res.collect(Array)

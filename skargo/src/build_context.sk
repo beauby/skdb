@@ -1,12 +1,34 @@
 module Skargo;
 
-private class Package(manifest: Manifest, manifest_path: String) {
+private class Package(
+  manifest: Manifest,
+  manifest_path: String,
+) uses Equality, Hashable, Show {
+  static fun read(manifest_path: String): Package {
+    Package(Manifest::read(manifest_path), manifest_path)
+  }
+
+  fun ==(other: Package): Bool {
+    this.manifest.package_id == other.manifest.package_id
+  }
+
   fun root(): String {
     Path.dirname(this.manifest_path)
   }
+
+  fun hash(): Int {
+    // TODO: Proper hash
+    this.manifest.package_id.hash()
+  }
+
+  fun toString(): String {
+    `${this.manifest.package_id.name} v${
+      this.manifest.package_id.version
+    } (${this.root()})`
+  }
 }
 
-private base class CompileKind uses Show {
+private base class CompileKind uses Equality, Hashable, Show {
   children =
   | CompileKindHost()
   | CompileKindTarget(String)
@@ -17,75 +39,166 @@ private base class CompileKind uses Show {
 }
 
 private class BuildContext{
+  ws: Workspace,
   gctx: GlobalContext,
-  package: Package,
-  target_kind: CompileKind, // TODO: Move into Unit
-  target_profile: String, // TODO: Move into Unit
+  build_config: BuildConfig,
+  roots: Array<Unit>,
+  unit_graph: UnitGraph,
   target_dir: String,
   skc: String, // TODO: class Skc
   state_db: String,
 } {
-  static fun create(
-    gctx: GlobalContext,
-    manifest_path_opt: ?String,
-    target_opt: ?String,
-    target_dir_opt: ?String,
-    profile: String,
-  ): BuildContext {
-    manifest_path = manifest_path_opt.default(kManifestFile);
-    package = Package(Manifest::read(manifest_path), manifest_path);
-    target_dir = target_dir_opt match {
-    | Some(d) -> d
-    | None() -> Path.join(package.root(), "target")
+  fun build_plan(): Array<Unit> {
+    queue = Vector::mcreateFromItems(this.roots);
+    pos = 0;
+    while (pos < queue.size()) {
+      unit = queue[pos];
+      !pos = pos + 1;
+      for (dep in this.unit_graph[unit]) {
+        if (queue.contains(dep)) continue;
+        queue.push(dep)
+      }
     };
-    target_kind = target_opt match {
-    | Some(t) -> CompileKindTarget(t)
-    | None() -> CompileKindHost()
-    };
-    skc = Environ.varOpt("SKC").default("skc");
-    BuildContext{
-      gctx,
-      package,
-      target_kind,
-      target_profile => profile,
-      target_dir,
-      skc,
-      state_db => Path.join(target_dir, "state.db"),
-    }
-  }
 
-  fun target_dir_for_arch(arch: String): String {
-    Path.join(this.target_dir, arch, this.target_profile)
+    queue.reversed().collect(Array)
   }
-
-  fun target_dir_for(target: Target): String {
-    arch = if (target.for_host) {
-      "host"
-    } else {
-      this.target_kind.toString()
-    };
-    this.target_dir_for_arch(arch)
-  }
-
-  fun target_triple_for(target: Target): ?String {
-    if (target.for_host) return None();
-    this.target_kind match {
-    | CompileKindTarget(t) -> Some(t)
-    | _ -> None()
-    }
-  }
-
+  // fun target_dir_for_arch(arch: String): String {
+  //   Path.join(this.target_dir, arch, this.profile)
+  // }
+  // fun target_dir_for(unit: Unit): String {
+  //   arch = if (unit.target.for_host) {
+  //     "host"
+  //   } else {
+  //     this.target_dir_for_arch(arch)
+  //   }
+  // }
+  // fun target_triple_for(target: Target): ?String {
+  //   if (target.for_host) return None();
+  //   this.target_kind match {
+  //   | CompileKindTarget(t) -> Some(t)
+  //   | _ -> None()
+  //   }
+  // }
   // static fun hostBinary(env: Env, profile: String, binary: String): String {
   //   Path.join(Path.join(getTargetDir(env.rootDir, None()), profile), binary);
   // }
-
   // TODO: Deprecate
-  fun isWasm32(): Bool {
-    this.target_kind match {
-    | CompileKindHost() -> false
-    | CompileKindTarget(t) -> TargetTriple::fromString(t).isWasm32()
-    }
+  // fun isWasm32(): Bool {
+  //   this.target_kind match {
+  //   | CompileKindHost() -> false
+  //   | CompileKindTarget(t) -> TargetTriple::fromString(t).isWasm32()
+  //   }
+  // }
+}
+
+// TODO: Return Result<...>
+fun create_bctx(
+  gctx: GlobalContext,
+  ws: Workspace,
+  opts: CompileOptions,
+): BuildContext {
+  resolved_packages = resolve(ws.package);
+
+  roots = generate_root_units(ws.package, opts.filter, opts.build_config);
+  unit_graph = build_unit_dependencies(roots, resolved_packages);
+  skc = Environ.varOpt("SKC").default("skc");
+  target_dir = ws.target_dir();
+  BuildContext{
+    ws,
+    gctx,
+    build_config => opts.build_config,
+    roots,
+    unit_graph,
+    target_dir,
+    skc,
+    state_db => Path.join(target_dir, "state.db"),
   }
+}
+
+fun generate_root_units(
+  package: Package,
+  filter: CompileFilter,
+  build_config: BuildConfig,
+): Array<Unit> {
+  package.manifest.targets
+    .filter(target ->
+      filter match {
+      | CompileFilterDefault() ->
+        target.is_bin() || target.is_lib() || target.is_test()
+      | CompileFilterOnly{lib} if (target.is_lib()) -> !(lib is LibRuleFalse _)
+      | CompileFilterOnly{bins} if (target.is_bin()) -> bins.matches(target)
+      | CompileFilterOnly{tests} if (target.is_test()) -> tests.matches(target)
+      | _ -> false
+      }
+    )
+    .map(target -> Unit(package, target, build_config.requested_arch))
+    .collect(Array)
+}
+
+fun build_unit_dependencies(
+  roots: Array<Unit>,
+  resolved_packages: Map<String, Package>,
+): UnitGraph {
+  unit_graph = mutable UnitGraph[];
+  for (unit in roots) {
+    build_unit_dependencies_for_unit(unit, resolved_packages, unit_graph)
+  };
+
+  unit_graph.chill()
+}
+
+fun build_unit_dependencies_for_unit(
+  unit: Unit,
+  resolved_packages: Map<String, Package>,
+  unit_graph: mutable UnitGraph,
+): void {
+  if (unit_graph.containsKey(unit)) return void;
+
+  unit_deps = compute_deps(unit, resolved_packages);
+  unit_graph![unit] = unit_deps;
+  for (dep in unit_deps) {
+    build_unit_dependencies_for_unit(dep, resolved_packages, unit_graph)
+  }
+}
+
+fun compute_deps(
+  unit: Unit,
+  resolved_packages: Map<String, Package>,
+): Array<Unit> {
+  unit_deps = mutable Vector[];
+
+  unit.target.kind match {
+  | BinTarget _
+  | TestTarget _ ->
+    unit_deps.push(Unit(unit.pkg, unit.pkg.manifest.lib_target(), unit.kind))
+  | LibTarget _ ->
+    unit.pkg.manifest.build_script_target() match {
+    | Some(target) -> unit_deps.push(Unit(unit.pkg, target, CompileKindHost()))
+    | None() -> void
+    }
+  | _ -> void
+  };
+
+  is_std_build_script = (
+    unit.target.kind is CustomBuildTarget _ &&
+    unit.pkg.manifest.package_id.name == "std"
+  );
+
+  deps = unit.pkg.manifest.dependencies.filter(dep ->
+    unit.target.kind match {
+    | CustomBuildTarget _ -> dep.kind is BuildDep _
+    | LibTarget _ -> dep.kind is NormalDep _
+    | _ -> false
+    }
+  );
+  for (dep in deps) {
+    dep_package = resolved_packages[dep.name];
+    unit_deps.push(
+      Unit(dep_package, dep_package.manifest.lib_target(), unit.kind),
+    )
+  };
+
+  unit_deps.collect(Array)
 }
 
 class TargetTriple(
