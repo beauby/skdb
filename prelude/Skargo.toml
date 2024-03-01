@@ -2,9 +2,5 @@
 name = "std"
 version = "0.1.0"
 
-# FIXME: Remove once parser is updated.
-# [dependencies]
-# skfs = { path = "../skfs" }
-
 # [build-dependencies]
 # std = { path = "." }
