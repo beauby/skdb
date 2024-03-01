@@ -1,0 +1,86 @@
+module Skargo;
+
+/********* Test **********/
+
+fun nproc(): Int {
+  p = System.subprocess(Array["nproc"]);
+  p.exitstatus match {
+  | Posix.WExited(0) ->
+    p.stdout.trim().toIntOption() match {
+    | Some(n) -> n
+    | None() -> 8
+    }
+  | _ -> 8
+  };
+}
+
+fun test(): (Cli.Command, Cli.ParseResults ~> void) {
+  (
+    Cli.Command("test")
+      .short("t")
+      .about("Run the tests")
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
+      .arg(
+        Cli.StringArg("filter")
+          .positional()
+          .about("If specified, only run tests with names matching the filter"),
+      )
+      .arg(
+        Cli.IntArg("jobs")
+          .long("jobs")
+          .short("j")
+          .default(nproc())
+          .about("Number of parallel jobs, defaults to # of CPUs"),
+      )
+      .arg(Cli.StringArg("target").about("Check for the target triple"))
+      .arg(
+        Cli.StringArg("target-dir").about(
+          "Directory for all generated artifacts",
+        ),
+      )
+      .arg(
+        Cli.StringArg("profile").about(
+          "Build artifacts with the specified profile",
+        ),
+      )
+      .arg(
+        Cli.BoolArg("release")
+          .short("r")
+          .long("release")
+          .about("Build artifacts in release mode, with optimizations"),
+      )
+      .arg(Cli.BoolArg("list").about("Display the list of available tests"))
+      .arg(Cli.StringArg("junitxml").about("Generate a JUnit XML report")),
+    args ~> gctxCmd(args, execTest),
+  )
+}
+
+fun execTest(gctx: GlobalContext, args: Cli.ParseResults): void {
+  ws = workspace(args, gctx);
+  opts = compile_options(args);
+  bctx = create_bctx(gctx, ws, opts);
+
+  _ = bctx;
+  // checkBuildFiles(bc, true, List.Nil());
+  // // genVersionFile(bc);
+  // test_target = bc.package.manifest.targets
+  //   .find(t -> t.name == "test")
+  //   .fromSome();
+  // compile(bc, test_target, bc.target_dir_for(test_target));
+  // filter = args.maybeGetString("filter");
+  // junitxml = args.maybeGetString("junitxml").map(f -> `--junitxml=${f}`);
+  // jobs = args.getInt("jobs");
+  // list = if (args.getBool("list")) Some("--list") else None();
+  // testBinary = Path.join(bc.target_dir_for(test_target), "test");
+  // if (FileSystem.exists(testBinary)) {
+  //   Posix.execvp(
+  //     Array[testBinary].concat(
+  //       Array[junitxml, filter, list, Some(`-j${jobs}`)].filterNone(),
+  //     ),
+  //   )
+  // } else {
+  //   skipExit(1)
+  // }
+}
+
+module end;

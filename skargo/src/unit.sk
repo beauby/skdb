@@ -1,0 +1,21 @@
+module Skargo;
+
+class Unit(
+  pkg: Package,
+  target: Target,
+  kind: CompileKind,
+) uses Equality, Hashable, Show {
+  fun hash(): Int {
+    `${this.pkg.hash()}.${this.target.hash()}.${this.kind}`.hash()
+  }
+
+  fun toString(): String {
+    `${this.pkg.manifest.package_id.name} v${
+      this.pkg.manifest.package_id.version
+    }: ${this.target.name}`
+  }
+}
+
+type UnitGraph = Map<Unit, Array<Unit>>;
+
+module end;

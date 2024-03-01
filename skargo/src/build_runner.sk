@@ -1,0 +1,139 @@
+module Skargo;
+
+class BuildRunner(
+  bctx: BuildContext,
+  // build_script_outputs,
+  host_layout: Layout,
+  target_layout: Layout,
+  hashes: Map<Unit, Int>,
+) {
+  static fun create(bctx: BuildContext): BuildRunner {
+    host_layout = Layout::create(
+      bctx,
+      None(),
+      bctx.build_config.requested_profile,
+    );
+    target_layout = bctx.build_config.requested_arch match {
+    | CompileKindHost() -> host_layout
+    | CompileKindTarget(t) ->
+      Layout::create(bctx, Some(t), bctx.build_config.requested_profile)
+    };
+
+    hashes = mutable Map[];
+    for (unit in bctx.roots) {
+      _ = hash_of(unit, bctx, hashes)
+    };
+
+    BuildRunner(bctx, host_layout, target_layout, hashes.chill())
+  }
+
+  fun compile(): void {
+    this.prepare();
+    started = mutable Set[];
+
+    for (unit in this.bctx.build_plan()) {
+      if (!started.contains(unit.pkg)) {
+        started.add(unit.pkg);
+        this.bctx.gctx.console.status("Compiling", unit.pkg.toString())
+      };
+
+      this.compile_unit(unit)
+    }
+  }
+
+  private fun compile_unit(unit: Unit): void {
+    unit.target.kind match {
+    | BinTarget _
+    | TestTarget _ ->
+      this.compile_bin_unit(unit)
+    | CustomBuildTarget _ ->
+      this.compile_build_script(unit);
+      this.run_build_script(unit)
+    | LibTarget _ -> void
+    }
+  }
+
+  private fun compile_bin_unit(unit: Unit): void {
+    print_error("TODO " + unit.target.name)
+  }
+
+  private fun compile_build_script(unit: Unit): void {
+    print_error("TODO " + unit.target.name)
+  }
+
+  private fun run_build_script(unit: Unit): void {
+    build_script = Path.join(this.build_script_dir(unit), unit.target.name);
+    this.bctx.gctx.console.status_verbose("Running", build_script);
+    print_error("TODO run build script")
+  }
+
+  private fun prepare(): void {
+    this.host_layout.prepare();
+    this.target_layout.prepare();
+  }
+
+  private fun layout_for_unit(unit: Unit): Layout {
+    unit.kind match {
+    | CompileKindHost() -> this.host_layout
+    | _ -> this.target_layout
+    }
+  }
+
+  private fun build_script_dir(unit: Unit): String {
+    assert(unit.target.kind is CustomBuildTarget _);
+
+    Path.join(
+      this.layout_for_unit(unit).build,
+      unit.pkg.manifest.package_id.name,
+    )
+  }
+
+  private fun prepare_unit(unit: Unit): void {
+    unit.target.kind match {
+    | CustomBuildTarget _ ->
+      path = this.build_script_dir(unit);
+      _ = system(`mkdir -p ${path}`)
+    | BinTarget _ -> void
+    | LibTarget _ -> void
+    | TestTarget _ -> void
+    }
+  }
+
+  private fun skc(_unit: Unit): void {
+    invariant_violation("TODO")
+  }
+}
+
+private fun hash_of(
+  unit: Unit,
+  bctx: BuildContext,
+  out: mutable Map<Unit, Int>,
+): Int {
+  if (!out.containsKey(unit)) {
+    print_error("Computing for " + unit);
+    dep_hashes = mutable Vector[];
+    for (dep in bctx.unit_graph[unit]) {
+      dep_hashes.push(hash_of(dep, bctx, out))
+    };
+
+    out.set(unit, compute_hash(unit, dep_hashes.collect(Array), bctx))
+  };
+
+  out[unit]
+}
+
+private fun compute_hash(
+  unit: Unit,
+  dep_hashes: Array<Int>,
+  bctx: BuildContext,
+): Int {
+  (
+    unit.pkg.manifest.package_id,
+    dep_hashes,
+    bctx.build_config,
+    unit.target.name,
+    unit.target.kind,
+  ).hash()
+}
+
+module end;

@@ -1,0 +1,51 @@
+module Skargo;
+
+fun check(): (Cli.Command, Cli.ParseResults ~> void) {
+  (
+    Cli.Command("check")
+      .short("c")
+      .about(
+        "Analyze the current package and report errors, but don't build object files",
+      )
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
+      .arg(Cli.StringArg("target").about("Check for the target triple"))
+      .arg(
+        Cli.StringArg("target-dir").about(
+          "Directory for all generated artifacts",
+        ),
+      )
+      .arg(
+        Cli.StringArg("profile").about(
+          "Build artifacts with the specified profile",
+        ),
+      )
+      .arg(
+        Cli.BoolArg("release")
+          .short("r")
+          .long("release")
+          .about("Build artifacts in release mode, with optimizations"),
+      ),
+    args ~> gctxCmd(args, execCheck),
+  )
+}
+
+fun execCheck(gctx: GlobalContext, args: Cli.ParseResults): void {
+  // if (env.config.formatOnCheck) {
+  //   execFmt(args, gctx)
+  // };
+  ws = workspace(args, gctx);
+  opts = compile_options(args);
+  bctx = create_bctx(gctx, ws, opts);
+  _ = bctx;
+  // bc = BuildContext::create(
+  //   gctx,
+  //   args.maybeGetString("manifest-path"),
+  //   args.maybeGetString("target"),
+  //   args.maybeGetString("target-dir"),
+  //   getProfile(args),
+  // );
+  // // genVersionFile(bc);
+  // invokeSkc(bc, Array["--check"])
+}
+
+module end;

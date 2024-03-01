@@ -1,0 +1,14 @@
+module Skargo;
+
+class BuildScriptOutput{
+  /// Paths to pass to `skc` with the `-L` flag.
+  library_paths: Array<String>,
+  /// Libraries to pass to `skc` with the `-l` flag.
+  library_links: Array<String>,
+  // /// Paths to trigger a rerun of this build script.
+  // rerun_if_changed: Array<String>,
+  // /// Environment variables which, when changed, will cause a rebuild.
+  // rerun_if_env_changed: Array<String>,
+}
+
+module end;

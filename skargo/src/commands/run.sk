@@ -1,0 +1,54 @@
+module Skargo;
+
+/********* Run **********/
+
+fun runner(): (Cli.Command, Cli.ParseResults ~> void) {
+  (
+    Cli.Command("run")
+      .short("r")
+      .about("Run the built host binary of the local package")
+      .arg(
+        Cli.StringArg("profile").about(
+          "Run the binary with the specified profile",
+        ),
+      )
+      .arg(
+        Cli.BoolArg("release")
+          .short("r")
+          .long("release")
+          .about("Run the binary in release mode"),
+      )
+      .arg(Cli.StringArg("bin").about("Run the specified binary"))
+      .arg(Cli.StringArg("manifest-path").about("Path to Skargo.toml"))
+      .extra(),
+    args ~> gctxCmd(args, execRun),
+  )
+}
+
+fun execRun(_gctx: GlobalContext, _args: Cli.ParseResults): void {
+  // env = args.maybeGetString("path") match {
+  // | Some(path) ->
+  //   manifestFile = Path.join(Path.resolve(path), Skargo.kManifestFile);
+  //   invariant(
+  //     FileSystem.exists(manifestFile),
+  //     `Invalid skargo directory ${path}`,
+  //   );
+  //   Env::fromFile(manifestFile, getVerbosity(args))
+  // | _ -> Env::create(getVerbosity(args))
+  // };
+  // bins = collectBinaries(args, env);
+  // invariant(!bins.isEmpty(), "No binary to run");
+  // invariant(bins.size() == 1, "Multiple binary please select one");
+  // hostBinary = BuildContext::hostBinary(
+  //   env,
+  //   getProfile(args),
+  //   bins.first().name,
+  // );
+  // invariant(FileSystem.exists(hostBinary), "No binary to run, build first");
+  // cmdArgs = Array[hostBinary].concat(args.extra);
+  // env.console.status_verbose("Running", cmdArgs.join(" "));
+  // Posix.execvp(cmdArgs)
+  void
+}
+
+module end;
