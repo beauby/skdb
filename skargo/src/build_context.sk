@@ -179,11 +179,6 @@ fun compute_deps(
   | _ -> void
   };
 
-  is_std_build_script = (
-    unit.target.kind is CustomBuildTarget _ &&
-    unit.pkg.manifest.package_id.name == "std"
-  );
-
   deps = unit.pkg.manifest.dependencies.filter(dep ->
     unit.target.kind match {
     | CustomBuildTarget _ -> dep.kind is BuildDep _

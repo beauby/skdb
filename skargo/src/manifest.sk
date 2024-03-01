@@ -114,7 +114,7 @@ class TomlManifest{
 
     dependencies = toml.maybeGetTable("dependencies") match {
     | Some(TOML.Table(t)) ->
-      t.map.map((_, v) -> TomlDependency::fromTOML(basePath, v))
+      t.map((_, v) -> TomlDependency::fromTOML(basePath, v))
     | None() -> Map[]
     };
 

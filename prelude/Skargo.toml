@@ -2,8 +2,9 @@
 name = "std"
 version = "0.1.0"
 
-[dependencies]
-skfs = { "path" = "../skfs" }  # Temporary
+# FIXME: Remove once parser is updated.
+# [dependencies]
+# skfs = { path = "../skfs" }
 
-[build-dependencies]
-std = { "path" = "." }
+# [build-dependencies]
+# std = { path = "." }
