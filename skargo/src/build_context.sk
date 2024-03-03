@@ -8,6 +8,14 @@ private class Package(
     Package(Manifest::read(manifest_path), manifest_path)
   }
 
+  fun name(): String {
+    this.manifest.package_id.name
+  }
+
+  fun version(): Semver.Version {
+    this.manifest.package_id.version
+  }
+
   fun ==(other: Package): Bool {
     this.manifest.package_id == other.manifest.package_id
   }

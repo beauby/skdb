@@ -37,6 +37,7 @@ class BuildRunner(
         this.bctx.gctx.console.status("Compiling", unit.pkg.toString())
       };
 
+      this.prepare_unit(unit);
       this.compile_unit(unit)
     }
   }
@@ -62,7 +63,7 @@ class BuildRunner(
   }
 
   private fun run_build_script(unit: Unit): void {
-    build_script = Path.join(this.build_script_dir(unit), unit.target.name);
+    build_script = Path.join(this.dest_dir_for(unit), unit.target.name);
     this.bctx.gctx.console.status_verbose("Running", build_script);
     print_error("TODO run build script")
   }
@@ -79,73 +80,114 @@ class BuildRunner(
     }
   }
 
-  private fun build_script_dir(unit: Unit): String {
-    assert(unit.target.kind is CustomBuildTarget _);
-
-    Path.join(
-      this.layout_for_unit(unit).build,
-      unit.pkg.manifest.package_id.name,
-    )
-  }
-
   private fun prepare_unit(unit: Unit): void {
+    path = this.dest_dir_for(unit);
+    _ = system(`mkdir -p ${path}`);
+
     unit.target.kind match {
     | CustomBuildTarget _ ->
-      path = this.build_script_dir(unit);
-      _ = system(`mkdir -p ${path}`)
-    | BinTarget _ -> void
-    | LibTarget _ -> void
-    | TestTarget _ -> void
+      out_path = Path.join(path, "out");
+      _ = system(`mkdir -p ${out_path}`)
+    | _ -> void
     }
   }
 
   private fun skc(unit: Unit): void {
     args = mutable Vector[this.bctx.skc];
-    target_flag = unit.kind match {
+
+    unit.kind match {
     | CompileKindHost() -> void
     | CompileKindTarget(t) -> args.push(`--target=${t}`)
     };
+
     // TODO: state.db
 
     for (file in tmp_get_files(unit, this.bctx.unit_graph)) {
       args.push(file)
     };
 
+    output_file = Path.join(
+      this.dest_dir_for(unit),
+      unit.target.name + this.suffix_for(unit),
+    );
+    args.extend(Array["-o", output_file]);
+
     this.bctx.gctx.console.status_verbose(
       "Running",
       "`" + args.join(" ") + "`",
     );
+    // (stdout_cb, stderr_cb) = if (
+    //   this.bctx.gctx.console.verbosity >= VerbosityProlix()
+    // ) {
+    //   (print_raw, print_error_raw)
+    // } else {
+    //   ((_) -> void, (_) -> void)
+    // };
+    // p = System.subprocess(args.collect(Array), stdout_cb, stderr_cb);
+    // if (!p.success()) {
+    //   this.bctx.gctx.console.error(
+    //     "command exited with non-zero status\n\n" +
+    //       "Caused by:\n" +
+    //       "  process did not exit successfully: \`" +
+    //       args[0] +
+    //       `\` (exit status: ${p.exitcode()})\n` +
+    //       "  --- stdout\n" +
+    //       p.stdout.split("\n").map(l -> "  " + l).join("\n") +
+    //       "\n" +
+    //       "  --- stderr\n" +
+    //       p.stderr.split("\n").map(l -> "  " + l).join("\n") +
+    //       "\n",
+    //   );
+    //   throw SystemCallException(p.exitcode());
+    // }
+  }
 
-    (stdout_cb, stderr_cb) = if (
-      this.bctx.gctx.console.verbosity >= VerbosityProlix()
-    ) {
-      (print_raw, print_error_raw)
-    } else {
-      ((_) -> void, (_) -> void)
-    };
-
-    p = System.subprocess(args.collect(Array), stdout_cb, stderr_cb);
-    if (!p.success()) {
-      this.bctx.gctx.console.error(
-        "command exited with non-zero status\n\n" +
-          "Caused by:\n" +
-          "  process did not exit successfully: \`" +
-          args[0] +
-          `\` (exit status: ${p.exitcode()})\n` +
-          "  --- stdout\n" +
-          p.stdout.split("\n").map(l -> "  " + l).join("\n") +
-          "\n" +
-          "  --- stderr\n" +
-          p.stderr.split("\n").map(l -> "  " + l).join("\n") +
-          "\n",
-      );
-      throw SystemCallException(p.exitcode());
+  private fun dest_dir_for(unit: Unit): String {
+    layout = this.layout_for_unit(unit);
+    unit.target.kind match {
+    | TestTarget _
+    | BinTarget _ ->
+      layout.root
+    | LibTarget _ -> Path.join(layout.deps, this.dir_name_for(unit))
+    | CustomBuildTarget _ -> Path.join(layout.build, this.dir_name_for(unit))
     }
+  }
+
+  private fun dir_name_for(unit: Unit): String {
+    unit.pkg.name() + "-" + this.hashes[unit].toStringHex()
+  }
+
+  private fun suffix_for(unit: Unit): String {
+    unit.target.kind match {
+    | BinTarget _ ->
+      unit.kind match {
+      | CompileKindTarget(t) if (TargetTriple::fromString(t).isWasm32()) ->
+        ".wasm"
+      | _ -> ""
+      }
+    | LibTarget _ -> ".sklib"
+    | _ -> ""
+    };
   }
 }
 
+// This is a temporary hack before skc properly handles sklibs.
 fun tmp_get_files(unit: Unit, unit_graph: UnitGraph): Array<String> {
-  seen = mutable Set<Unit>;
+  files = mutable Vector[];
+  queue = mutable Vector[unit];
+  pos = 0;
+  while (pos < queue.size()) {
+    cur_unit = queue[pos];
+    files.extend(cur_unit.target.srcs);
+    !pos = pos + 1;
+
+    for (dep in unit_graph[cur_unit]) {
+      if (queue.find(u -> u == dep) is Some _) continue;
+      queue.push(dep);
+    }
+  };
+
+  files.collect(Array)
 }
 
 private fun hash_of(
