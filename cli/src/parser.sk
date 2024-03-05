@@ -266,7 +266,18 @@ private fun parse(
         }
       | Some(arg) ->
         if (!values.containsKey(arg.name)) {
-          values.set(arg.name, BoolValue(!str.startsWith("--no-")))
+          values.set(
+            arg.name,
+            BoolValue(
+              !str.startsWith("--no-") ||
+                options
+                  .values()
+                  .filter(o -> o.name == arg.name)
+                  .collect(Array)
+                  .size() ==
+                  1,
+            ),
+          )
         } else {
           !error = Some(DuplicateValueError(arg.name));
           break void
