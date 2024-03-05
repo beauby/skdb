@@ -454,6 +454,16 @@ mutable native class .Array<+T>
     )
   }
 
+  // Returns a tuple of (pass, fail) sequences: the pass sequence contains items
+  // from this container for which the predicate returns true, the fail
+  // sequence contains items for which the predicate returns false.
+  readonly fun partition(p: T -> Bool): (Sequence<T>, Sequence<T>) {
+    pass = Vector::mcreate(0);
+    fail = Vector::mcreate(0);
+    this.each(value -> if (p(value)) pass.push(value) else fail.push(value));
+    (unsafe_chill_trust_me(pass), unsafe_chill_trust_me(fail))
+  }
+
   readonly fun reversed(): Array<T> {
     size = this.size();
     static::fillBy(size, i -> this.unsafe_get(size - i - 1))
