@@ -167,19 +167,11 @@ fun test_harness(tests: readonly Map<String, readonly Sequence<Test>>): void {
           if (res.result != "success") {
             !success = false
           };
-          reporters.each(x -> x.report(res));
-          // NOTE: This effectively forces sequential reading of subprocess
-          // output since `has_data_left()` will fill its internal buffer by
-          // calling `read()` if empty. Revisit when a suitable API is available
-          // from `BufferedReader`.
-          readers[i].has_data_left() match {
-          | Failure(err) -> throw err
-          | Success(false) -> break void
-          | Success _ -> void
-          }
+          reporters.each(x -> x.report(res))
         }
       } else if (pfd.pollerr() || pfd.pollhup()) {
-        invariant_violation("Unexpected POLLHUP/POLLERR")
+        pollfds.set(i, Posix.Pollfd::create(-1));
+        !open_fds = open_fds - 1
       }
     }
   };
