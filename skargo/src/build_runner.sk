@@ -234,7 +234,10 @@ mutable class BuildRunner(
     };
 
     cmd.env("PCK_DIR", unit.pkg.root());
-    cmd.env("OUT_DIR", Path.join(this.build_dir_for(unit), "out"));
+    cmd.env(
+      "OUT_DIR",
+      FileSystem.realpath(Path.join(this.build_dir_for(unit), "out")),
+    );
     cmd.env("NAME", unit.pkg.name());
     cmd.env("PROFILE", this.bctx.build_config.requested_profile);
     cmd.env(
@@ -303,7 +306,11 @@ mutable class BuildRunner(
       // TODO: This is dirty.
       skc.env(
         "SKC_PREAMBLE",
-        this.build_script_outputs[bs_unit].preambles.join(Path.listSeparator),
+        this.build_script_outputs[bs_unit].preambles.map(path ->
+          if (path.startsWith("/")) path else {
+            Path.join(bs_unit.pkg.root(), path)
+          }
+        ).join(Path.listSeparator),
       )
     | None() -> void
     };

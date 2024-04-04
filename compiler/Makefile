@@ -14,21 +14,17 @@ stage%:
 	mkdir -p $@
 	$(MAKE) $@/bin/skc $@/bin/skfmt $@/bin/skargo $@/lib/libstd.sklib
 
-stage%/lib/libstd.sklib: bootstrap/libstd.sklib
-	mkdir -p $(@D)
-	cp $< $@
-
 bootstrap/%.ll: bootstrap/%.ll.gz
 	gunzip -c $< > $@
 
 .PHONY: bootstrap/libskip_runtime64.a bootstrap/libbacktrace.a
-bootstrap/libskip_runtime64.a:
-bootstrap/libbacktrace.a:
-	OUT_DIR=$(realpath ./bootstrap) $(MAKE) -C ../prelude
+bootstrap/libskip_runtime64.a bootstrap/libbacktrace.a:
+	OUT_DIR=$$(realpath ./bootstrap) $(MAKE) -C ../prelude
 
-.PHONY: bootstrap/libstd.sklib
-bootstrap/libstd.sklib:
-	PATH=$(realpath stage0/bin/):$(PATH) OUT_DIR=$(realpath ./bootstrap) $(MAKE) -C ../prelude bootstrap
+.PHONY: stage0/lib/libstd.sklib
+stage0/lib/libstd.sklib:
+	mkdir -p $(@D)
+	PATH=$$(realpath stage0/bin/):$(PATH) OUT_DIR=$$(realpath ./stage0/lib/) $(MAKE) -C ../prelude bootstrap
 
 stage0/bin/skc: bootstrap/skc_out64.ll bootstrap/libskip_runtime64.a bootstrap/libbacktrace.a
 	mkdir -p $(@D)
@@ -42,16 +38,23 @@ stage0/bin/skfmt: bootstrap/skfmt_out64.ll stage0/lib/libstd.sklib
 	mkdir -p $(@D)
 	clang++ -no-pie $(CXXFLAGS) -o $@ $^ -lpthread -g3
 
-stage1/bin/skc stage1/bin/skfmt stage1/bin/skargo: stage0
+stage1/bin/skc stage1/bin/skfmt: stage0
 	PATH=stage0/bin/:$(PATH) skargo build -r --bins --out-dir stage1/bin --target-dir stage1/target
+
+stage1/lib/libstd.sklib: stage0
+	PATH=stage0/bin/:$(PATH) skargo build -r --lib --out-dir stage1/lib --target-dir stage1/target --manifest-path ../prelude/Skargo.toml
+
+stage1/bin/skargo: stage0
 	PATH=stage0/bin/:$(PATH) skargo build -r --bins --out-dir stage1/bin --target-dir stage1/target --manifest-path ../skargo/Skargo.toml
 
 stage2/bin/skc stage2/bin/skfmt stage2/bin/skargo: stage1
 	PATH=stage1/bin/:$(PATH) skargo build -r --bins --out-dir stage2/bin --target-dir stage2/target
+	PATH=stage1/bin/:$(PATH) skargo build -r --lib --out-dir stage2/lib --target-dir stage2/target
 	PATH=stage1/bin/:$(PATH) skargo build -r --bins --out-dir stage2/bin --target-dir stage2/target --manifest-path ../skargo/Skargo.toml
 
 stage3/bin/skc stage3/bin/skfmt stage3/bin/skargo: stage2
 	PATH=stage2/bin/:$(PATH) skargo build -r --bins --out-dir stage3/bin --target-dir stage3/target
+	PATH=stage2/bin/:$(PATH) skargo build -r --lib --out-dir stage3/lib --target-dir stage3/target
 	PATH=stage2/bin/:$(PATH) skargo build -r --bins --out-dir stage3/bin --target-dir stage3/target --manifest-path ../skargo/Skargo.toml
 # 	TODO: Ensure stage2 == stage3.
 
