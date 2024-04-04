@@ -40,22 +40,25 @@ stage0/bin/skfmt: bootstrap/skfmt_out64.ll stage0/lib/libstd.sklib
 
 stage1/bin/skc stage1/bin/skfmt: stage0
 	PATH=stage0/bin/:$(PATH) skargo build -r --bins --out-dir stage1/bin --target-dir stage1/target
-
 stage1/lib/libstd.sklib: stage0
 	PATH=stage0/bin/:$(PATH) skargo build -r --lib --out-dir stage1/lib --target-dir stage1/target --manifest-path ../prelude/Skargo.toml
-
 stage1/bin/skargo: stage0
 	PATH=stage0/bin/:$(PATH) skargo build -r --bins --out-dir stage1/bin --target-dir stage1/target --manifest-path ../skargo/Skargo.toml
 
-stage2/bin/skc stage2/bin/skfmt stage2/bin/skargo: stage1
+stage2/bin/skc stage2/bin/skfmt: stage1
 	PATH=stage1/bin/:$(PATH) skargo build -r --bins --out-dir stage2/bin --target-dir stage2/target
-	PATH=stage1/bin/:$(PATH) skargo build -r --lib --out-dir stage2/lib --target-dir stage2/target
+stage2/lib/libstd.sklib: stage1
+	PATH=stage1/bin/:$(PATH) skargo build -r --lib --out-dir stage2/lib --target-dir stage2/target --manifest-path ../prelude/Skargo.toml
+stage2/bin/skargo: stage1
 	PATH=stage1/bin/:$(PATH) skargo build -r --bins --out-dir stage2/bin --target-dir stage2/target --manifest-path ../skargo/Skargo.toml
 
-stage3/bin/skc stage3/bin/skfmt stage3/bin/skargo: stage2
+stage3/bin/skc stage3/bin/skfmt: stage2
 	PATH=stage2/bin/:$(PATH) skargo build -r --bins --out-dir stage3/bin --target-dir stage3/target
-	PATH=stage2/bin/:$(PATH) skargo build -r --lib --out-dir stage3/lib --target-dir stage3/target
+stage3/lib/libstd.sklib: stage2
+	PATH=stage2/bin/:$(PATH) skargo build -r --lib --out-dir stage3/lib --target-dir stage3/target --manifest-path ../prelude/Skargo.toml
+stage3/bin/skargo: stage2
 	PATH=stage2/bin/:$(PATH) skargo build -r --bins --out-dir stage3/bin --target-dir stage3/target --manifest-path ../skargo/Skargo.toml
+
 # 	TODO: Ensure stage2 == stage3.
 
 stageA/bin/skc:
