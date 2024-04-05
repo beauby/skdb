@@ -50,10 +50,10 @@ libskip_runtime64.a: $(OFILES) runtime64_specific.o $(ONATIVE_FILES)
 	$(AR) rcs $@ $^
 
 runtime64_specific.o: runtime64_specific.cpp
-	clang++ -std=c++11 $(CC64FLAGS) -g3 -o $@ -c $<
+	clang++ -fPIC -std=c++11 $(CC64FLAGS) -g3 -o $@ -c $<
 
 %.o: %.c
-	clang $(CC64FLAGS) -g3 -o $@ -c $<
+	clang -fPIC $(CC64FLAGS) -g3 -o $@ -c $<
 
 .PHONY: clean
 clean:

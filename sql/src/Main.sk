@@ -744,3 +744,7 @@ fun execToggleView(args: Cli.ParseResults, _options: SKDB.Options): void {
 }
 
 module end;
+
+untracked fun skip_main(): void {
+  SKDB.main()
+}

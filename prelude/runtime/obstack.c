@@ -48,9 +48,9 @@ char* end = NULL;
 // well).
 
 #ifdef SKIP64
-__thread struct sk_obstack* page = NULL;
-__thread char* head = NULL;
-__thread char* end = NULL;
+_Thread_local struct sk_obstack* page = NULL;
+_Thread_local char* head = NULL;
+_Thread_local char* end = NULL;
 #endif
 
 /*****************************************************************************/
