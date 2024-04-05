@@ -131,7 +131,9 @@ private fun generate_root_units(
       .collect(Array)
   | CompileFilterOnly{lib, bins, tests} ->
     if (lib is LibRuleTrue _) {
-      res.push(package.manifest.lib_target().fromSome());
+      for (target in package.manifest.targets.filter(t -> t.is_lib())) {
+        res.push(target)
+      }
     };
     res.extend(
       list_rule_targets(
@@ -252,7 +254,8 @@ private fun compute_deps(
 
   unit.target.kind match {
   | BinTarget _
-  | TestTarget _ ->
+  | TestTarget _
+  | LibTarget(LibraryTypeCdylib _) ->
     // TODO: Allow bin without lib.
     unit_deps.push(
       Unit(
@@ -262,7 +265,7 @@ private fun compute_deps(
         CompileModeBuild(),
       ),
     )
-  | LibTarget _ ->
+  | LibTarget(LibraryTypeSklib _) ->
     unit.pkg.manifest.build_script_target() match {
     | Some(target) ->
       unit_deps.push(

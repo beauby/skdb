@@ -1,5 +1,36 @@
 module Skargo;
 
+base class LibraryType uses Equality, Hashable {
+  children =
+  | LibraryTypeSklib()
+  | LibraryTypeCdylib()
+
+  static fun fromString(str: String): LibraryType {
+    str match {
+    | "sklib" -> LibraryTypeSklib()
+    | "cdylib" -> LibraryTypeCdylib()
+    // TODO: Proper error.
+    | _ -> invariant_violation(`Unrecognized library type '${str}'.`)
+    }
+  }
+}
+
+class TomlLibrary{type: Array<LibraryType>} {
+  static fun fromTOML(toml: TOML.Table): TomlLibrary {
+    type = toml.maybeGetArray("type") match {
+    | Some(arr) ->
+      arr.map(s -> LibraryType::fromString(s.expectString())).collect(Array)
+    | None() -> Array[]
+    };
+
+    TomlLibrary{type}
+  }
+
+  static fun default(): TomlLibrary {
+    TomlLibrary{type => Array[LibraryTypeSklib()]}
+  }
+}
+
 // TODO: Add support for `git` repositories as a package location.
 class TomlDependency{version: ?String = None(), path: ?String = None()} {
   static fun fromTOML(basePath: String, toml: TOML.Value): TomlDependency {
@@ -97,6 +128,7 @@ class TomlManifest{
   dev_dependencies: Map<String, TomlDependency>,
   build_dependencies: Map<String, TomlDependency>,
   bin: Array<TomlBinary>,
+  lib: TomlLibrary,
 } {
   static fun read(path: String): TomlManifest {
     basePath = Path.dirname(path);
@@ -129,6 +161,11 @@ class TomlManifest{
     | _ -> Map[]
     };
 
+    lib = toml.maybeGetTable("lib") match {
+    | Some(t) -> TomlLibrary::fromTOML(t)
+    | None() -> TomlLibrary::default()
+    };
+
     bin = toml.maybeGetArray("bin") match {
     | Some(arr) -> arr.map(t -> TomlBinary::fromTOML(t.expectTable()))
     | None() -> Array[]
@@ -142,6 +179,7 @@ class TomlManifest{
       dependencies,
       dev_dependencies,
       build_dependencies,
+      lib,
       bin,
     }
   }
@@ -197,7 +235,7 @@ class Manifest(
   }
 
   fun lib_target(): ?Target {
-    this.targets.find(t -> t.is_lib())
+    this.targets.find(t -> t.kind == LibTarget(LibraryTypeSklib()))
   }
 
   fun build_script_target(): ?Target {
@@ -224,10 +262,9 @@ class Target(
   kind: TargetKind,
   name: String,
   srcs: Array<String>,
-  for_host: Bool,
 ) uses Equality, Hashable {
   fun hash(): Int {
-    (this.kind, this.name, this.srcs, this.for_host).hash()
+    (this.kind, this.name, this.srcs).hash()
   }
 
   fun is_lib(): Bool {
@@ -249,7 +286,7 @@ class Target(
 
 base class TargetKind uses Equality, Hashable {
   children =
-  | LibTarget()
+  | LibTarget(type: LibraryType)
   | BinTarget(entry_point: String)
   | TestTarget(entry_point: String)
   | CustomBuildTarget()
@@ -266,12 +303,13 @@ private fun manifest_targets(
   ).toArray();
 
   // TODO: Only do this for explicitly specified `[lib]` sections.
-  res.push(Target(LibTarget(), "lib", srcs, /* for_host = */ false));
+  res.push(Target(LibTarget(LibraryTypeSklib()), "lib", srcs));
+  if (manifest.lib.type.any(t -> t is LibraryTypeCdylib _)) {
+    res.push(Target(LibTarget(LibraryTypeCdylib()), "cdylib", Array[]))
+  };
 
   for (bin in manifest.bin) {
-    res.push(
-      Target(BinTarget(bin.main), bin.name, Array[], /* for_host = */ false),
-    )
+    res.push(Target(BinTarget(bin.main), bin.name, Array[]))
   };
 
   build_script_path = Path.join(package_root, "build.sk");
@@ -281,7 +319,6 @@ private fun manifest_targets(
         CustomBuildTarget(),
         `build-script-${manifest.name}`,
         Array[build_script_path],
-        /* for_host = */ true,
       ),
     )
   };
@@ -300,14 +337,7 @@ private fun manifest_targets(
   };
   if (!test_srcs.isEmpty()) {
     test_harness = manifest.test_harness.default("SKTest.main");
-    res.push(
-      Target(
-        TestTarget(test_harness),
-        "test",
-        test_srcs,
-        /* for_host = */ false,
-      ),
-    )
+    res.push(Target(TestTarget(test_harness), "test", test_srcs))
   };
 
   res.collect(Array)

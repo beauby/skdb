@@ -65,7 +65,6 @@ mutable class BuildRunner(
   hashes: Map<Unit, Int>,
   fingerprints: mutable Map<Unit, Int> = mutable Map[],
   build_script_outputs: mutable Map<Unit, BuildScriptOutput> = mutable Map[],
-  transitive_link_deps: mutable Map<Unit, Array<Unit>> = mutable Map[],
 ) {
   static fun create(bctx: BuildContext): mutable BuildRunner {
     host_layout = Layout::create(
@@ -297,7 +296,10 @@ mutable class BuildRunner(
     };
 
     // TODO: Support this in a more generic way.
-    if (unit.pkg.name() == "std" && unit.target.is_lib()) {
+    if (
+      unit.pkg.name() == "std" &&
+      unit.target.kind is LibTarget(LibraryTypeSklib _)
+    ) {
       skc.arg("--no-std")
     };
 
@@ -317,33 +319,26 @@ mutable class BuildRunner(
 
     for (dep in this.bctx.unit_graph[unit]) {
       if (!dep.target.is_lib()) continue;
-      sklib_file = this.sklib_file_for(dep);
+      sklib_file = this.lib_file_for(dep);
       skc.args(Array["-l", `${dep.pkg.name()}=${sklib_file}`])
     };
 
     skc.args(Array["-L", this.layout_for(unit).deps]);
 
-    link_args = mutable Vector[];
-    for (bs_unit in this.transitive_link_deps_for(unit)) {
-      bs_out = this.build_script_outputs[bs_unit];
-      link_args.extend(bs_out.link_args);
-      if (
-        bs_unit.pkg == unit.pkg &&
-        (unit.target.is_lib() || unit.pkg.manifest.lib_target() is None _)
-      ) {
-        for (lib in bs_out.libraries) {
-          skc.arg(lib)
+    if (unit.target.kind is LibTarget(LibraryTypeSklib _)) {
+      this.build_script_unit_for(unit) match {
+      | Some(bs_unit) ->
+        bs_out = this.build_script_outputs[bs_unit];
+        skc.args(bs_out.extra_sources);
+        skc.args(bs_out.libraries);
+        if (!bs_out.link_args.isEmpty()) {
+          skc.args(Array[`--link-args`, bs_out.link_args.join(" ")])
         }
+      | None() -> void
       }
     };
-    skc.args(Array[`--link-args`, link_args.join(" ")]);
 
     skc.args(unit.target.srcs);
-    this.build_script_unit_for(unit) match {
-    | Some(bs_unit) ->
-      skc.args(this.build_script_outputs[bs_unit].extra_sources)
-    | None() -> void
-    };
 
     if (!unit.target.is_build_script()) {
       // TODO: Once we have namespaced packages, we can share the state.db
@@ -362,7 +357,9 @@ mutable class BuildRunner(
     };
 
     unit.target.kind match {
-    | LibTarget() -> skc.arg(`--sklib-name=${unit.pkg.name()}`)
+    | LibTarget(LibraryTypeSklib()) ->
+      skc.arg(`--sklib-name=${unit.pkg.name()}`)
+    | LibTarget(LibraryTypeCdylib()) -> skc.arg("--emit=cdylib")
     | BinTarget(e)
     | TestTarget(e) ->
       skc.args(Array["--export-function-as", `${e}=skip_main`])
@@ -419,36 +416,6 @@ mutable class BuildRunner(
     p
   }
 
-  // Compute a list of all transitive dependencies that are units corresponding
-  // to build scripts runs.
-  private mutable fun transitive_link_deps_for(unit: Unit): Array<Unit> {
-    if (!this.transitive_link_deps.containsKey(unit)) {
-      seen = mutable Set[];
-      res = mutable Vector[];
-      for (dep in this.bctx.unit_graph[unit]) {
-        if (
-          dep.target.is_build_script() &&
-          dep.mode is CompileModeRunBuildScript _
-        ) {
-          if (!seen.contains(dep)) {
-            seen.add(dep);
-            res.push(dep)
-          }
-        } else {
-          for (dep_dep in this.transitive_link_deps_for(dep)) {
-            if (seen.contains(dep_dep)) continue;
-            seen.add(dep_dep);
-            res.push(dep_dep)
-          }
-        }
-      };
-
-      this.transitive_link_deps![unit] = res.collect(Array);
-    };
-
-    this.transitive_link_deps[unit]
-  }
-
   private readonly fun build_script_unit_for(unit: Unit): ?Unit {
     for (dep in this.bctx.unit_graph[unit]) {
       if (
@@ -468,9 +435,12 @@ mutable class BuildRunner(
     is_root = this.bctx.roots.contains(unit);
     export_dir = this.bctx.build_config.export_dir;
     unit.target.kind match {
-    | LibTarget _ ->
-      short_name = `lib${unit.pkg.name()}.sklib`;
-      file = OutputFile(this.sklib_file_for(unit), None(), None());
+    | LibTarget(type) ->
+      short_name = type match {
+      | LibraryTypeSklib _ -> `lib${unit.pkg.name()}.sklib`
+      | LibraryTypeCdylib _ -> `lib${unit.pkg.name()}.so`
+      };
+      file = OutputFile(this.lib_file_for(unit), None(), None());
       if (is_root) {
         !file = file with {
           hardlink => Some(Path.join(layout.dest, short_name)),
@@ -508,11 +478,16 @@ mutable class BuildRunner(
     res.collect(Array)
   }
 
-  private readonly fun sklib_file_for(unit: Unit): String {
-    assert(unit.target.is_lib());
+  private readonly fun lib_file_for(unit: Unit): String {
+    suffix = unit.target.kind match {
+    | LibTarget(LibraryTypeSklib _) -> "sklib"
+    | LibTarget(LibraryTypeCdylib _) -> "so"
+    | _ -> invariant_violation("Invalid target kind for lib_file_for()")
+    };
     name = unit.pkg.name();
     hash = this.hashes[unit].toStringHex();
-    Path.join(this.layout_for(unit).deps, `lib${name}-${hash}.sklib`)
+
+    Path.join(this.layout_for(unit).deps, `lib${name}-${hash}.${suffix}`)
   }
 
   private readonly fun binary_file_for(unit: Unit): String {
