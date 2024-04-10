@@ -745,6 +745,7 @@ fun execToggleView(args: Cli.ParseResults, _options: SKDB.Options): void {
 
 module end;
 
+@cpp_export("skip_main")
 untracked fun skip_main(): void {
   SKDB.main()
 }

@@ -296,6 +296,17 @@ void __attribute__((constructor)) premain() {
   program_break = sbrk(0);
 }
 
+void sk_init(int pargc, char **pargv) {
+  sk_saved_obstack_t* saved;
+  argc = pargc;
+  argv = pargv;
+  SKIP_memory_init(pargc, pargv);
+  saved = SKIP_new_Obstack();
+  SKIP_initializeSkip();
+  sk_persist_consts();
+  SKIP_destroy_Obstack(saved);
+}
+  
 int main(int pargc, char** pargv) {
   sk_saved_obstack_t* saved;
   argc = pargc;

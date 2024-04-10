@@ -1,5 +1,6 @@
 #include "runtime.h"
 
+#include <stdio.h>
 /*****************************************************************************/
 /* Obstack. */
 /*****************************************************************************/
@@ -48,9 +49,9 @@ char* end = NULL;
 // well).
 
 #ifdef SKIP64
-_Thread_local struct sk_obstack* page = NULL;
-_Thread_local char* head = NULL;
-_Thread_local char* end = NULL;
+__thread struct sk_obstack* page = NULL;
+__thread char* head = NULL;
+__thread char* end = NULL;
 #endif
 
 /*****************************************************************************/
@@ -172,6 +173,9 @@ sk_saved_obstack_t* sk_saved_obstack(sk_obstack_t* page) {
 
 sk_saved_obstack_t* SKIP_new_Obstack() {
   sk_saved_obstack_t* saved;
+  printf("%p\n", head);
+  printf("%p\n", page);
+  printf("%p\n", end);
   if (head == NULL && page == NULL && end == NULL) {
     saved = &init_saved;
   } else {
