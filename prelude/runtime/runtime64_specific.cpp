@@ -40,6 +40,7 @@ extern "C" {
 
 #ifndef RELEASE
 #include <backtrace.h>
+#endif
 
 typedef struct {
   char* head;
@@ -54,6 +55,7 @@ sk_saved_obstack_t* SKIP_new_Obstack();
 void SKIP_destroy_Obstack(sk_saved_obstack_t* saved);
 }
 
+#ifndef RELEASE
 namespace {
 
 struct backtrace_data {
@@ -279,7 +281,9 @@ int main(int pargc, char** pargv) {
   sk_saved_obstack_t* saved;
   argc = pargc;
   argv = pargv;
+#ifndef RELEASE
   std::set_terminate(terminate);
+#endif
   SKIP_memory_init(pargc, pargv);
   saved = SKIP_new_Obstack();
   SKIP_initializeSkip();
