@@ -1,0 +1,24 @@
+[package]
+name = "skdb-client"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+base64 = "*"
+futures-util = "*"
+futures-channel = "*"
+url = "*"
+rand = "*"
+chrono = "*"
+ring = "*"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "*", features = ["native-tls"] }
+
+[build-dependencies]
+cc = "1.0.83"
+
+[[bin]]
+name = "client"
