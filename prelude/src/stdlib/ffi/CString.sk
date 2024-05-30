@@ -1,0 +1,7 @@
+module FFI;
+
+native value class CString {
+  native fun toString(): String;
+}
+
+module end;
