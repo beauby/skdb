@@ -343,7 +343,10 @@ class Skdb(val name: String, private val dbPath: String) {
   }
 
   fun canMirror(table: String, schema: String): Boolean {
-    val result = blockingRun(ProcessBuilder(ENV.skdbPath, "can-mirror", table, schema))
+    val result =
+        blockingRun(ProcessBuilder(ENV.skdbPath, "can-mirror", table, schema, "--data", dbPath))
+    System.out.println(
+        arrayOf(ENV.skdbPath, "can-mirror", table, schema, "--data", dbPath).joinToString(" "))
     result.logOnError()
     return result.exitSuccessfully() && result.decode() == ""
   }

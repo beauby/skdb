@@ -187,10 +187,6 @@ class RequestHandler(
         stream.close()
       }
       is ProtoRequestTail -> {
-        if (!skdb.canMirror(request.table, request.expectedSchema)) {
-          stream.error(2003u, "Invalid schema for ${request.table}")
-          return this
-        }
         val proc =
             skdb.tail(
                 accessKey,
