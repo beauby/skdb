@@ -281,6 +281,12 @@ void* SKIP_Unsafe_string_ptr(char* str, int64_t offset) {
   return str + offset;
 }
 
+#ifdef SKIP64
+char* SKIP_FFI_cstring_to_string(char* str) {
+  return sk_string_create(str, strlen(str));
+}
+#endif
+
 /*****************************************************************************/
 /* Multibyte utf8 string used for testing purposes. */
 /*****************************************************************************/

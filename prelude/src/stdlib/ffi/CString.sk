@@ -1,0 +1,15 @@
+module FFI;
+
+native value class CString uses Show {
+  // NOTE: This cannot be a native method because the compiler does not handle
+  // native methods on value classes properly (it does not pass `this` as an
+  // argument).
+  fun toString(): String {
+    cstring_to_string(this)
+  }
+}
+
+@cpp_extern
+private native fun cstring_to_string(cstring: CString): String;
+
+module end;
