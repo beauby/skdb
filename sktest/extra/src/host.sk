@@ -18,6 +18,13 @@ fun test_job(
         continue
       };
 
+      proc = Posix.Popen::create{
+        args => Array[
+          Environ.args()[0],
+          "--single",
+          `${testSuite}.${testName}`,
+        ],
+      };
       stdout_file = Posix.mkstemp(Path.join(Environ.temp_dir(), "XXXXXX"));
       Posix.dup2(stdout_file.fileno, IO.stdout().fileno);
       stderr_file = Posix.mkstemp(Path.join(Environ.temp_dir(), "XXXXXX"));
@@ -60,6 +67,11 @@ fun test_harness(tests: readonly Map<String, readonly Sequence<Test>>): void {
           "If specified, only run tests containing this string in their names",
         ),
     )
+    .arg(
+      Cli.Arg::string("single").about(
+        "If specified, only run the one corresponding test, fail otherwise",
+      ),
+    )
     // TODO: Expose flag(s) to handle test report format(s) selection.
     .arg(
       Cli.Arg::int("jobs")
@@ -79,6 +91,24 @@ fun test_harness(tests: readonly Map<String, readonly Sequence<Test>>): void {
     .parseArgs();
 
   filter = args.maybeGetString("filter").default("");
+
+  args.maybeGetString("single") match {
+  | None() -> void
+  | Some(name) ->
+    (testSuite, testName) = name.splitFirst(".");
+    test = tests.maybeGet(testSuite).flatMap(suite ->
+      suite.find(t -> t.name == testName)
+    );
+    test match {
+    | None() ->
+      print_error(`Test \`${name}\` not found`);
+      skipExit(3)
+    | Some(t) ->
+      t.func();
+      skipExit(0)
+    }
+  };
+
   Environ.varOpt("SKTEST_RANK") match {
   | Some(rank) ->
     test_job(
