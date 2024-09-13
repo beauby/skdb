@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
+  "types": "src/index.d.js",
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean",
