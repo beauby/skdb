@@ -1,0 +1,1197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2024-09-23 Mon 11:41 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reactive Services &#x2013; Architecture</title>
+<meta name="generator" content="Org Mode" />
+<style>
+  #content { max-width: 60em; margin: auto; }
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #e6e6e6;
+    border-radius: 3px;
+    background-color: #f2f2f2;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: auto;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    padding: 3px;
+    color: #555;
+    background-color: #f2f2f299;
+  }
+  pre.src:hover:before { display: inline; margin-top: 14px;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-authinfo::before { content: 'Authinfo'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { }
+</style>
+</head>
+<body>
+<div id="content" class="content">
+<h1 class="title">Reactive Services &#x2013; Architecture</h1>
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#orge77d722">1. Overview</a></li>
+<li><a href="#org927e151">2. Mirroring Reactive Resources</a></li>
+<li><a href="#org5ef16f5">3. The Write Path</a></li>
+<li><a href="#org833a3fc">4. Low Level API</a>
+<ul>
+<li><a href="#org513e027">4.1. Reactive Resources</a></li>
+<li><a href="#org244ce5d">4.2. Reading</a></li>
+<li><a href="#orgc35db6a">4.3. Writing</a></li>
+</ul>
+</li>
+<li><a href="#org3db08cf">5. Client</a></li>
+<li><a href="#org369aee9">6. Authentication</a></li>
+<li><a href="#org6fd1199">7. Full Example: HackerNews</a>
+<ul>
+<li><a href="#org62a72f3">7.1. Non-reactive initial project</a></li>
+<li><a href="#org5a3b7ad">7.2. Making it reactive</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orge77d722" class="outline-2">
+<h2 id="orge77d722"><span class="section-number-2">1.</span> Overview</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+This RFC aims to define an architecture for <b>reactive services</b>, along
+with their APIs.
+</p>
+
+
+<div id="org501de76" class="figure">
+<p><img src="architecture.png" alt="architecture.png" />
+</p>
+</div>
+
+<p>
+A <b>reactive service</b> defines a compute graph made of skip runtime
+reactive collections, along with one or more <b>reactive resources</b>
+(analogous to REST resources), which are parameterized, dynamically
+generated, read-only, skip runtime reactive collections exposed to the
+outside world.
+</p>
+
+<p>
+A <b>reactive service</b> is a back end component offering a low level API
+intended to be used by other back end components (such as regular REST
+services), rather than being directly exposed to the front end.
+</p>
+
+<p>
+A <b>reactive resources</b> can be mirrored (through WebSocket) from by
+services as well as directly from clients.
+</p>
+
+<p>
+Example:
+</p>
+
+<p>
+A Twitter <b>reactive service</b> may expose the following <b>reactive
+resources</b>:
+</p>
+<ul class="org-ul">
+<li><code>tweets</code> (params: <code>author_id</code>),</li>
+<li><code>likes_per_tweet</code> (params: <code>tweet_id</code>),</li>
+<li><code>likes_per_author</code> (params: <code>author_id</code>).</li>
+</ul>
+
+<p>
+In practice, it is implemented as follows:
+</p>
+<div class="org-src-container">
+<pre class="src src-nil">TODO
+</pre>
+</div>
+
+<p>
+A <b>reactive service</b> offers a <a href="#org833a3fc">minimal API</a> to interact with <b>reactive
+resources</b>. This API is intended to be used by other back end
+components, such as a regular web frameworks<sup><a id="fnr.1" class="footref" href="#fn.1" role="doc-backlink">1</a></sup>.
+</p>
+</div>
+</div>
+<div id="outline-container-org927e151" class="outline-2">
+<h2 id="org927e151"><span class="section-number-2">2.</span> Mirroring Reactive Resources</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+In practice, a <b>reactive resource</b> is implemented by a TypeScript
+class responsible for dynamically generating a skip runtime reactive
+collection (using the provided parameters).
+</p>
+
+<p>
+It is usually exposed through a separate REST service (implemented
+using any web framework), which orchestrates the instantiation of
+<b>reactive resources</b>.
+</p>
+
+<p>
+Example<sup><a id="fnr.2" class="footref" href="#fn.2" role="doc-backlink">2</a></sup>:
+</p>
+
+<div id="orge74fa96" class="figure">
+<p><img src="mirroring.png" alt="mirroring.png" />
+</p>
+</div>
+
+<ul class="org-ul">
+<li>A client sends a regular HTTP <code>GET /users/123/likes</code> to the REST
+service.</li>
+<li>The REST service handles the request:
+<ul class="org-ul">
+<li>it invokes the <b>reactive service</b>'s
+<code>create_reactive_request("likes_per_author", { author_id: 123 })</code>,
+which returns a reactive request token (in practice, this is the
+name of a dynamically generated skip runtime collection),</li>
+<li>it invokes the <b>reactive service</b>'s <code>diff(reactive_request_id,
+    0)</code>, returning the current value along with the current tick,</li>
+<li>it returns an HTTP 200 OK response, with the current value in the
+response body, along with a special HTTP header:
+<code>X-Reactive-Request-Id: {reactive_request_id}:{init_tick}</code>.</li>
+</ul></li>
+<li>The client uses the received data, and invokes the <b>skip reactive
+client</b>'s <code>mirror(reactive_request_id, init_tick, update_cb)</code> to
+subscribe to subsequent updates<sup><a id="fnr.3" class="footref" href="#fn.3" role="doc-backlink">3</a></sup>.</li>
+</ul>
+
+<p>
+This means that an <b>existing REST API can be kept as is</b>, and made
+reactive without hindering non-reactive clients (which would simply
+ignore the <code>X-Reactive-Request-Id</code> HTTP response header), thus
+<b>permitting gradual introduction of reactivity in existing services</b>.
+</p>
+</div>
+</div>
+<div id="outline-container-org5ef16f5" class="outline-2">
+<h2 id="org5ef16f5"><span class="section-number-2">3.</span> The Write Path</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Some of the skip runtime reactive collections defined by the <b>reactive
+service</b> may be read-write <b>input collections</b>.  On the write path,
+the web framework simply invokes the <b>reactive service</b>'s <code>write() /
+write_all()</code> functions <sup><a id="fnr.4" class="footref" href="#fn.4" role="doc-backlink">4</a></sup>.
+</p>
+</div>
+</div>
+<div id="outline-container-org833a3fc" class="outline-2">
+<h2 id="org833a3fc"><span class="section-number-2">4.</span> Low Level API</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+<b>Reactive Services</b> expose the following low level primitives (through
+a local server-side HTTP API, except for <code>subscribe()</code> which is
+handled through a WebSocket):
+</p>
+</div>
+<div id="outline-container-org513e027" class="outline-3">
+<h3 id="org513e027"><span class="section-number-3">4.1.</span> Reactive Resources</h3>
+<div class="outline-text-3" id="text-4-1">
+<ul class="org-ul">
+<li><p>
+[WebSocket] <code>subscribe(replication_token: string, cb: (values: Object,
+  isInit: boolean): void)</code>
+</p>
+
+<p>
+Subscribes to further updates from the reactive collection
+identified by <code>replication_token</code>.
+</p></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org244ce5d" class="outline-3">
+<h3 id="org244ce5d"><span class="section-number-3">4.2.</span> Reading</h3>
+<div class="outline-text-3" id="text-4-2">
+<ul class="org-ul">
+<li><p>
+<code>GET /{resource}</code>
+Headers:
+</p>
+<ul class="org-ul">
+<li>(optional) <code>X-Reactive-Auth</code>: Reactive service authentication
+token.</li>
+</ul>
+
+<p>
+Parameters: Query parameters are passed down to the reactive
+resource.
+</p>
+
+<p>
+Returns the whole collection at current tick in the response body.
+</p>
+
+<p>
+If an <code>X-Reactive-Auth</code> header is set by the client, the server
+creates a long-lived response collection, the identifier of which is
+returned in the <code>X-Reactive-Response</code> header. This identifier can
+then be used to stream further updates through the WebSocket API.
+Updates are restricted to the session identified by the
+<code>X-Reactive-Auth</code> token.
+</p></li>
+
+<li><p>
+<code>HEAD /{resource}</code>
+Headers:
+</p>
+<ul class="org-ul">
+<li>(optional) <code>X-Reactive-Auth</code>: Reactive service authentication
+token.</li>
+</ul>
+<p>
+Parameters: Query parameters are passed down to the reactive
+resource.
+</p>
+
+<p>
+Identical to <code>GET /{resource}</code>, except that no data is returned in
+the body.
+</p>
+
+<p>
+This is only useful when setting the <code>X-Reactive~Auth</code> header, in
+order to get a replication token. This can be used to handle initial
+data through the replication client.
+</p></li>
+
+<li><p>
+<code>GET /{resource}/{key}</code>
+Parameters: Query parameters are passed down to the reactive
+resource.
+</p>
+
+<p>
+Read a single key from the collection.
+</p></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgc35db6a" class="outline-3">
+<h3 id="orgc35db6a"><span class="section-number-3">4.3.</span> Writing</h3>
+<div class="outline-text-3" id="text-4-3">
+<ul class="org-ul">
+<li><p>
+<code>PUT /{collection}/{key}</code>
+</p>
+
+<p>
+Update the value in the input collection <code>collection</code> with the value
+provided in the request body (JSON array).
+</p>
+
+<p>
+Example: <code>["foo", "bar"]</code>
+</p></li>
+
+<li><p>
+<code>PATCH /{collection}</code>
+</p>
+
+<p>
+Update the values in the input collection <code>collection</code> with the
+values provided in the request body.
+</p>
+
+<p>
+Example: <code>[[1, ["foo", "bar"]], [1337, ["foobar"]]]</code>
+</p></li>
+
+<li><p>
+<code>DELETE /{collection}/{key}</code>
+</p>
+
+<p>
+Remove the given <code>key</code> from the input collection <code>collection</code>.
+</p></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org3db08cf" class="outline-2">
+<h2 id="org3db08cf"><span class="section-number-2">5.</span> Client</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+A downstream consumer of a <b>reactive service</b> will usually be using a
+thin client in their host language. That client deals only with
+mirroring <b>reactive resources</b> (cf. <a href="#org927e151">Mirroring Reactive Resources</a>), and
+subscribing to updates.
+</p>
+</div>
+</div>
+<div id="outline-container-org369aee9" class="outline-2">
+<h2 id="org369aee9"><span class="section-number-2">6.</span> Authentication</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+A pair of public/private keys is generated client-side in order to
+authenticate a session. The private key never leaves the client<sup><a id="fnr.5" class="footref" href="#fn.5" role="doc-backlink">5</a></sup>.
+</p>
+
+<p>
+The public key is sent to the replication server in the <code>Auth</code>
+message, along with a signature of the <code>Auth</code> message, in order to
+authenticate the mirroring session.
+</p>
+
+<p>
+The <code>Auth</code> message contains a (client generated) nonce to prevent
+replay attacks, and a timestamp to make tracking previously used
+nonces more practical.
+</p>
+
+<p>
+The replication server accepts any public key (as long as it matches
+the signature). By default, no data is mirrorable, except for the
+response tables generated for requests using that public key.
+</p>
+
+<p>
+The <code>create_reactive_request()</code> function of the <a href="#org833a3fc">Low Level API</a> takes a
+public key as its last parameter. The generated response table can be
+mirrored only by authenticating using the same public/private key
+pair.
+</p>
+</div>
+</div>
+<div id="outline-container-org6fd1199" class="outline-2">
+<h2 id="org6fd1199"><span class="section-number-2">7.</span> Full Example: HackerNews</h2>
+<div class="outline-text-2" id="text-7">
+</div>
+<div id="outline-container-org62a72f3" class="outline-3">
+<h3 id="org62a72f3"><span class="section-number-3">7.1.</span> Non-reactive initial project</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+SQL Schema:
+</p>
+<div class="org-src-container">
+<pre class="src src-sql"><span class="linenr"> 1: </span><span style="color: #859900; font-weight: bold;">CREATE</span> <span style="color: #859900; font-weight: bold;">TABLE</span> IF <span style="color: #859900; font-weight: bold;">NOT</span> <span style="color: #859900; font-weight: bold;">EXISTS</span> <span style="color: #268bd2;">users</span> (
+<span class="linenr"> 2: </span>       "id" <span style="color: #b58900;">INTEGER</span> <span style="color: #859900; font-weight: bold;">PRIMARY</span> <span style="color: #859900; font-weight: bold;">KEY</span> AUTOINCREMENT,
+<span class="linenr"> 3: </span>       "<span style="color: #859900; font-weight: bold;">name</span>" TEXT,
+<span class="linenr"> 4: </span>       "email" TEXT
+<span class="linenr"> 5: </span>);
+<span class="linenr"> 6: </span><span style="color: #859900; font-weight: bold;">CREATE</span> <span style="color: #859900; font-weight: bold;">TABLE</span> IF <span style="color: #859900; font-weight: bold;">NOT</span> <span style="color: #859900; font-weight: bold;">EXISTS</span> <span style="color: #268bd2;">posts</span> (
+<span class="linenr"> 7: </span>       "id" <span style="color: #b58900;">INTEGER</span> <span style="color: #859900; font-weight: bold;">PRIMARY</span> <span style="color: #859900; font-weight: bold;">KEY</span> AUTOINCREMENT,
+<span class="linenr"> 8: </span>       "author_id" <span style="color: #b58900;">INTEGER</span>,
+<span class="linenr"> 9: </span>       "title" TEXT,
+<span class="linenr">10: </span>       "url" TEXT,
+<span class="linenr">11: </span>       "body" TEXT
+<span class="linenr">12: </span>);
+<span class="linenr">13: </span><span style="color: #859900; font-weight: bold;">CREATE</span> <span style="color: #859900; font-weight: bold;">TABLE</span> IF <span style="color: #859900; font-weight: bold;">NOT</span> <span style="color: #859900; font-weight: bold;">EXISTS</span> <span style="color: #268bd2;">upvotes</span> (
+<span class="linenr">14: </span>       "id" <span style="color: #b58900;">INTEGER</span> <span style="color: #859900; font-weight: bold;">PRIMARY</span> <span style="color: #859900; font-weight: bold;">KEY</span> AUTOINCREMENT,
+<span class="linenr">15: </span>       "user_id" <span style="color: #b58900;">INTEGER</span>,
+<span class="linenr">16: </span>       "post_id" <span style="color: #b58900;">INTEGER</span>
+<span class="linenr">17: </span>);
+<span class="linenr">18: </span>
+<span class="linenr">19: </span><span style="color: #586e75;">-- </span><span style="color: #586e75;">Fixtures</span>
+<span class="linenr">20: </span><span style="color: #859900; font-weight: bold;">INSERT</span> <span style="color: #859900; font-weight: bold;">INTO</span> posts("title", "url", "body") <span style="color: #859900; font-weight: bold;">VALUES</span>
+<span class="linenr">21: </span>       (<span style="color: #2aa198;">'Hello!'</span>, <span style="color: #2aa198;">'http://foo.org'</span>, <span style="color: #2aa198;">'This is a post'</span>),
+<span class="linenr">22: </span>       (<span style="color: #2aa198;">'Reactive stuff'</span>, <span style="color: #2aa198;">'http://bar.net'</span>, <span style="color: #2aa198;">'This is neat.'</span>);
+</pre>
+</div>
+<p>
+Back end:
+</p>
+<div class="org-src-container">
+<pre class="src src-python"><span class="linenr"> 1: </span><span style="color: #859900; font-weight: bold;">from</span> flask <span style="color: #859900; font-weight: bold;">import</span> Flask, g, json, request
+<span class="linenr"> 2: </span><span style="color: #859900; font-weight: bold;">import</span> sqlite3
+<span class="linenr"> 3: </span>
+<span class="linenr"> 4: </span><span style="color: #268bd2;">DATABASE</span> = <span style="color: #2aa198;">'database.db'</span>
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span>
+<span class="linenr"> 7: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">get_db</span>():
+<span class="linenr"> 8: </span>    <span style="color: #268bd2;">db</span> = <span style="color: #839496; font-weight: bold;">getattr</span>(g, <span style="color: #2aa198;">'_database'</span>, <span style="color: #268bd2; font-weight: bold;">None</span>)
+<span class="linenr"> 9: </span>    <span style="color: #859900; font-weight: bold;">if</span> db <span style="color: #859900; font-weight: bold;">is</span> <span style="color: #268bd2; font-weight: bold;">None</span>:
+<span class="linenr">10: </span>        <span style="color: #268bd2;">db</span> = g.<span style="color: #268bd2;">_database</span> = sqlite3.connect(DATABASE)
+<span class="linenr">11: </span>    <span style="color: #859900; font-weight: bold;">return</span> db
+<span class="linenr">12: </span>
+<span class="linenr">13: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">init_db</span>():
+<span class="linenr">14: </span>    <span style="color: #859900; font-weight: bold;">with</span> app.app_context():
+<span class="linenr">15: </span>        <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">16: </span>        <span style="color: #859900; font-weight: bold;">with</span> app.open_resource(<span style="color: #2aa198;">'schema.sql'</span>, mode=<span style="color: #2aa198;">'r'</span>) <span style="color: #859900; font-weight: bold;">as</span> f:
+<span class="linenr">17: </span>            db.cursor().executescript(f.read())
+<span class="linenr">18: </span>        db.commit()
+<span class="linenr">19: </span>
+<span class="linenr">20: </span>
+<span class="linenr">21: </span><span style="color: #268bd2;">app</span> = Flask(<span style="color: #839496; font-weight: bold;">__name__</span>)
+<span class="linenr">22: </span>
+<span class="linenr">23: </span><span style="color: #586e75;"># </span><span style="color: #586e75;">Required for local testing.</span>
+<span class="linenr">24: </span><span style="color: #859900; font-weight: bold;">from</span> flask_cors <span style="color: #859900; font-weight: bold;">import</span> CORS
+<span class="linenr">25: </span>CORS(app)
+<span class="linenr">26: </span>
+<span class="linenr">27: </span><span style="color: #b58900;">@app.teardown_appcontext</span>
+<span class="linenr">28: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">close_connection</span>(exception):
+<span class="linenr">29: </span>    <span style="color: #268bd2;">db</span> = <span style="color: #839496; font-weight: bold;">getattr</span>(g, <span style="color: #2aa198;">'_database'</span>, <span style="color: #268bd2; font-weight: bold;">None</span>)
+<span class="linenr">30: </span>    <span style="color: #859900; font-weight: bold;">if</span> db <span style="color: #859900; font-weight: bold;">is</span> <span style="color: #859900; font-weight: bold;">not</span> <span style="color: #268bd2; font-weight: bold;">None</span>:
+<span class="linenr">31: </span>        db.close()
+<span class="linenr">32: </span>
+<span class="linenr">33: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">format_post</span>(post):
+<span class="linenr">34: </span>    <span style="color: #859900; font-weight: bold;">return</span> {
+<span class="linenr">35: </span>        <span style="color: #2aa198;">"id"</span>: post[0],
+<span class="linenr">36: </span>        <span style="color: #2aa198;">"title"</span>: post[1],
+<span class="linenr">37: </span>        <span style="color: #2aa198;">"url"</span>: post[2],
+<span class="linenr">38: </span>        <span style="color: #2aa198;">"body"</span>: post[3],
+<span class="linenr">39: </span>        <span style="color: #2aa198;">"author"</span>: post[4],
+<span class="linenr">40: </span>        <span style="color: #2aa198;">"upvotes"</span>: post[5]
+<span class="linenr">41: </span>    }
+<span class="linenr">42: </span>
+<span class="linenr">43: </span><span style="color: #b58900;">@app.get</span>(<span style="color: #2aa198;">"/"</span>)
+<span class="linenr">44: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">posts_index</span>():
+<span class="linenr">45: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">46: </span>    <span style="color: #268bd2;">cur</span> = db.execute(
+<span class="linenr">47: </span>        <span style="color: #2aa198;">"""SELECT id, title, url, body,</span>
+<span class="linenr">48: </span><span style="color: #2aa198;">        (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,</span>
+<span class="linenr">49: </span><span style="color: #2aa198;">        (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes</span>
+<span class="linenr">50: </span><span style="color: #2aa198;">        FROM posts ORDER BY upvotes DESC"""</span>
+<span class="linenr">51: </span>    )
+<span class="linenr">52: </span>    <span style="color: #268bd2;">res</span> = [
+<span class="linenr">53: </span>        format_post(post)
+<span class="linenr">54: </span>        <span style="color: #859900; font-weight: bold;">for</span> post <span style="color: #859900; font-weight: bold;">in</span> cur.fetchall()
+<span class="linenr">55: </span>    ]
+<span class="linenr">56: </span>    cur.close()
+<span class="linenr">57: </span>
+<span class="linenr">58: </span>    <span style="color: #859900; font-weight: bold;">return</span> json.jsonify(res)
+<span class="linenr">59: </span>
+<span class="linenr">60: </span><span style="color: #b58900;">@app.post</span>(<span style="color: #2aa198;">"/posts"</span>)
+<span class="linenr">61: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">create_post</span>():
+<span class="linenr">62: </span>    <span style="color: #268bd2;">params</span> = request.json
+<span class="linenr">63: </span>    <span style="color: #268bd2;">title</span> = params[<span style="color: #2aa198;">'title'</span>]
+<span class="linenr">64: </span>    <span style="color: #268bd2;">url</span> = params[<span style="color: #2aa198;">'url'</span>]
+<span class="linenr">65: </span>    <span style="color: #268bd2;">body</span> = params[<span style="color: #2aa198;">'body'</span>]
+<span class="linenr">66: </span>
+<span class="linenr">67: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">68: </span>    db.execute(f<span style="color: #2aa198;">"INSERT INTO posts(title, url, body) VALUES('</span>{title}<span style="color: #2aa198;">', '</span>{url}<span style="color: #2aa198;">', '</span>{body}<span style="color: #2aa198;">')"</span>)
+<span class="linenr">69: </span>    db.commit()
+<span class="linenr">70: </span>
+<span class="linenr">71: </span>    <span style="color: #859900; font-weight: bold;">return</span> <span style="color: #2aa198;">"ok"</span>, 200
+<span class="linenr">72: </span>
+<span class="linenr">73: </span><span style="color: #b58900;">@app.get</span>(<span style="color: #2aa198;">"/posts/&lt;int:post_id&gt;"</span>)
+<span class="linenr">74: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">get_post</span>(post_id):
+<span class="linenr">75: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">76: </span>
+<span class="linenr">77: </span>    <span style="color: #268bd2;">cur</span> = db.execute(f<span style="color: #2aa198;">"""SELECT id, title, url, body,</span>
+<span class="linenr">78: </span><span style="color: #2aa198;">    (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,</span>
+<span class="linenr">79: </span><span style="color: #2aa198;">    (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes</span>
+<span class="linenr">80: </span><span style="color: #2aa198;">    FROM posts WHERE id=</span>{post_id}<span style="color: #2aa198;">"""</span>)
+<span class="linenr">81: </span>    <span style="color: #268bd2;">res</span> = format_post(cur.fetchone())
+<span class="linenr">82: </span>    cur.close()
+<span class="linenr">83: </span>
+<span class="linenr">84: </span>    <span style="color: #859900; font-weight: bold;">return</span> json.jsonify(res)
+<span class="linenr">85: </span>
+<span class="linenr">86: </span><span style="color: #b58900;">@app.post</span>(<span style="color: #2aa198;">"/posts/&lt;int:post_id&gt;/upvotes"</span>)
+<span class="linenr">87: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">upvote_post</span>(post_id):
+<span class="linenr">88: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">89: </span>    db.execute(f<span style="color: #2aa198;">"INSERT INTO upvotes(post_id) VALUES(</span>{post_id}<span style="color: #2aa198;">)"</span>)
+<span class="linenr">90: </span>    db.commit()
+<span class="linenr">91: </span>
+<span class="linenr">92: </span>    <span style="color: #859900; font-weight: bold;">return</span> <span style="color: #2aa198;">"ok"</span>, 200
+</pre>
+</div>
+<p>
+Front end:
+</p>
+<div class="org-src-container">
+<pre class="src src-tsx"><span class="linenr">  1: </span><span style="color: #859900; font-weight: bold;">import</span> { <span style="color: #268bd2;">useState</span>, <span style="color: #268bd2;">useEffect</span> } <span style="color: #859900; font-weight: bold;">from</span> <span style="color: #2aa198;">'react'</span>
+<span class="linenr">  2: </span><span style="color: #859900; font-weight: bold;">import</span> {
+<span class="linenr">  3: </span>  BrowserRouter <span style="color: #859900; font-weight: bold;">as</span> <span style="color: #268bd2;">Router</span>,
+<span class="linenr">  4: </span>  <span style="color: #268bd2;">Routes</span>,
+<span class="linenr">  5: </span>  <span style="color: #268bd2;">Route</span>,
+<span class="linenr">  6: </span>  <span style="color: #268bd2;">Link</span>,
+<span class="linenr">  7: </span>  <span style="color: #268bd2;">useParams</span>
+<span class="linenr">  8: </span>} <span style="color: #859900; font-weight: bold;">from</span> <span style="color: #2aa198;">"react-router-dom"</span>;
+<span class="linenr">  9: </span><span style="color: #859900; font-weight: bold;">import</span> <span style="color: #2aa198;">'./App.css'</span>
+<span class="linenr"> 10: </span>
+<span class="linenr"> 11: </span><span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">BASE_URL</span> = <span style="color: #2aa198;">"http://localhost:5000"</span>
+<span class="linenr"> 12: </span>
+<span class="linenr"> 13: </span><span style="color: #859900; font-weight: bold;">export</span> <span style="color: #859900; font-weight: bold;">default</span> <span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">App</span>() {
+<span class="linenr"> 14: </span>  <span style="color: #859900; font-weight: bold;">return</span> (
+<span class="linenr"> 15: </span>    &lt;<span style="color: #268bd2;">Router</span>&gt;
+<span class="linenr"> 16: </span>      &lt;<span style="color: #268bd2;">div</span>&gt;
+<span class="linenr"> 17: </span>        &lt;<span style="color: #268bd2;">Routes</span>&gt;
+<span class="linenr"> 18: </span>          &lt;<span style="color: #268bd2;">Route</span> <span style="color: #268bd2; font-weight: bold;">path</span>=<span style="color: #2aa198;">"/"</span> <span style="color: #268bd2; font-weight: bold;">Component</span>={Feed} /&gt;
+<span class="linenr"> 19: </span>          &lt;<span style="color: #268bd2;">Route</span> <span style="color: #268bd2; font-weight: bold;">path</span>=<span style="color: #2aa198;">"/posts/:post_id"</span> <span style="color: #268bd2; font-weight: bold;">Component</span>={Post} /&gt;
+<span class="linenr"> 20: </span>        &lt;/<span style="color: #268bd2;">Routes</span>&gt;
+<span class="linenr"> 21: </span>      &lt;/<span style="color: #268bd2;">div</span>&gt;
+<span class="linenr"> 22: </span>    &lt;/<span style="color: #268bd2;">Router</span>&gt;
+<span class="linenr"> 23: </span>  );
+<span class="linenr"> 24: </span>}
+<span class="linenr"> 25: </span>
+<span class="linenr"> 26: </span><span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">Feed</span>() {
+<span class="linenr"> 27: </span>  <span style="color: #859900; font-weight: bold;">const</span> [<span style="color: #268bd2;">posts</span>, <span style="color: #268bd2;">setPosts</span>] = <span style="color: #268bd2;">useState</span>([])
+<span class="linenr"> 28: </span>
+<span class="linenr"> 29: </span>  <span style="color: #859900; font-weight: bold;">async</span> <span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">getPosts</span>() {
+<span class="linenr"> 30: </span>    <span style="color: #859900; font-weight: bold;">try</span> {
+<span class="linenr"> 31: </span>      <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">response</span> = <span style="color: #859900; font-weight: bold;">await</span> <span style="color: #268bd2;">fetch</span>(<span style="color: #268bd2; font-weight: bold;">BASE_URL</span>);
+<span class="linenr"> 32: </span>      <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">data</span> = <span style="color: #859900; font-weight: bold;">await</span> response.<span style="color: #268bd2;">json</span>();
+<span class="linenr"> 33: </span>      <span style="color: #859900; font-weight: bold;">return</span> data;
+<span class="linenr"> 34: </span>    } <span style="color: #859900; font-weight: bold;">catch</span> (<span style="color: #268bd2;">error</span>) {
+<span class="linenr"> 35: </span>      console.<span style="color: #268bd2;">error</span>(error);
+<span class="linenr"> 36: </span>    }
+<span class="linenr"> 37: </span>  }
+<span class="linenr"> 38: </span>
+<span class="linenr"> 39: </span>  <span style="color: #859900; font-weight: bold;">async</span> <span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">upvotePost</span>(<span style="color: #268bd2;">postId</span>) {
+<span class="linenr"> 40: </span>    <span style="color: #859900; font-weight: bold;">try</span> {
+<span class="linenr"> 41: </span>      <span style="color: #859900; font-weight: bold;">await</span> <span style="color: #268bd2;">fetch</span>(<span style="color: #2aa198;">`</span>${<span style="color: #268bd2; font-weight: bold;">BASE_URL</span>}<span style="color: #2aa198;">/posts/</span>${postId}<span style="color: #2aa198;">/upvotes`</span>, { <span style="color: #268bd2;">method</span>: <span style="color: #2aa198;">"POST"</span> });
+<span class="linenr"> 42: </span>      <span style="color: #268bd2;">getPosts</span>().<span style="color: #268bd2;">then</span>(setPosts);
+<span class="linenr"> 43: </span>    } <span style="color: #859900; font-weight: bold;">catch</span> (<span style="color: #268bd2;">error</span>) {
+<span class="linenr"> 44: </span>      console.<span style="color: #268bd2;">error</span>(error)
+<span class="linenr"> 45: </span>    }
+<span class="linenr"> 46: </span>  }
+<span class="linenr"> 47: </span>
+<span class="linenr"> 48: </span>  <span style="color: #268bd2;">useEffect</span>(() =&gt; {
+<span class="linenr"> 49: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">intervalId</span> = <span style="color: #268bd2;">setInterval</span>(() =&gt; {
+<span class="linenr"> 50: </span>      <span style="color: #268bd2;">getPosts</span>().<span style="color: #268bd2;">then</span>(setPosts);
+<span class="linenr"> 51: </span>    }, 1000);
+<span class="linenr"> 52: </span>
+<span class="linenr"> 53: </span>    <span style="color: #859900; font-weight: bold;">return</span> () =&gt; <span style="color: #268bd2;">clearInterval</span>(intervalId);
+<span class="linenr"> 54: </span>  }, []);
+<span class="linenr"> 55: </span>
+<span class="linenr"> 56: </span>  <span style="color: #859900; font-weight: bold;">return</span> (
+<span class="linenr"> 57: </span>    &lt;&gt;
+<span class="linenr"> 58: </span>      &lt;<span style="color: #268bd2;">h1</span>&gt;HackerNews example&lt;/<span style="color: #268bd2;">h1</span>&gt;
+<span class="linenr"> 59: </span>      &lt;<span style="color: #268bd2;">ul</span>&gt;
+<span class="linenr"> 60: </span>        {posts.<span style="color: #268bd2;">map</span>(<span style="color: #268bd2;">post</span> =&gt;
+<span class="linenr"> 61: </span>          &lt;<span style="color: #268bd2;">li</span> <span style="color: #268bd2; font-weight: bold;">key</span>={post.id}&gt;
+<span class="linenr"> 62: </span>            &lt;<span style="color: #268bd2;">div</span> <span style="color: #268bd2; font-weight: bold;">className</span>=<span style="color: #2aa198;">"votearrow"</span> <span style="color: #268bd2; font-weight: bold;">title</span>=<span style="color: #2aa198;">"upvote"</span> <span style="color: #268bd2; font-weight: bold;">onClick</span>={() =&gt; <span style="color: #268bd2;">upvotePost</span>(post.id)}&gt;&lt;/<span style="color: #268bd2;">div</span>&gt;&amp;nbsp;
+<span class="linenr"> 63: </span>            &lt;<span style="color: #268bd2;">Link</span> <span style="color: #268bd2; font-weight: bold;">to</span>={<span style="color: #2aa198;">`/posts/</span>${post.id}<span style="color: #2aa198;">`</span>}&gt;{post.title}&lt;/<span style="color: #268bd2;">Link</span>&gt;&amp;nbsp;
+<span class="linenr"> 64: </span>            &lt;<span style="color: #268bd2;">a</span> <span style="color: #268bd2; font-weight: bold;">href</span>={post.url}&gt;({post.url})&lt;/<span style="color: #268bd2;">a</span>&gt;&lt;<span style="color: #268bd2;">br</span> /&gt;
+<span class="linenr"> 65: </span>            {post.upvotes} points
+<span class="linenr"> 66: </span>          &lt;/<span style="color: #268bd2;">li</span>&gt;
+<span class="linenr"> 67: </span>        )}
+<span class="linenr"> 68: </span>      &lt;/<span style="color: #268bd2;">ul</span>&gt;
+<span class="linenr"> 69: </span>    &lt;/&gt;
+<span class="linenr"> 70: </span>  )
+<span class="linenr"> 71: </span>}
+<span class="linenr"> 72: </span>
+<span class="linenr"> 73: </span><span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">Post</span>() {
+<span class="linenr"> 74: </span>  <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">post_id</span> = <span style="color: #268bd2;">useParams</span>().post_id;
+<span class="linenr"> 75: </span>  <span style="color: #859900; font-weight: bold;">const</span> [<span style="color: #268bd2;">post</span>, <span style="color: #268bd2;">setPost</span>] = <span style="color: #268bd2;">useState</span>(<span style="color: #268bd2; font-weight: bold;">null</span>);
+<span class="linenr"> 76: </span>
+<span class="linenr"> 77: </span>  <span style="color: #859900; font-weight: bold;">async</span> <span style="color: #859900; font-weight: bold;">function</span> <span style="color: #268bd2;">getPost</span>(<span style="color: #268bd2;">postId</span>) {
+<span class="linenr"> 78: </span>    <span style="color: #859900; font-weight: bold;">try</span> {
+<span class="linenr"> 79: </span>      <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">response</span> = <span style="color: #859900; font-weight: bold;">await</span> <span style="color: #268bd2;">fetch</span>(<span style="color: #2aa198;">`</span>${<span style="color: #268bd2; font-weight: bold;">BASE_URL</span>}<span style="color: #2aa198;">/posts/</span>${postId}<span style="color: #2aa198;">`</span>);
+<span class="linenr"> 80: </span>      console.<span style="color: #268bd2;">log</span>(response);
+<span class="linenr"> 81: </span>      <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">data</span> = <span style="color: #859900; font-weight: bold;">await</span> response.<span style="color: #268bd2;">json</span>();
+<span class="linenr"> 82: </span>      console.<span style="color: #268bd2;">log</span>(data);
+<span class="linenr"> 83: </span>      <span style="color: #859900; font-weight: bold;">return</span> data;
+<span class="linenr"> 84: </span>    } <span style="color: #859900; font-weight: bold;">catch</span> (<span style="color: #268bd2;">error</span>) {
+<span class="linenr"> 85: </span>      console.<span style="color: #268bd2;">error</span>(error)
+<span class="linenr"> 86: </span>    }
+<span class="linenr"> 87: </span>  }
+<span class="linenr"> 88: </span>
+<span class="linenr"> 89: </span>  <span style="color: #268bd2;">useEffect</span>(() =&gt; {
+<span class="linenr"> 90: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">intervalId</span> = <span style="color: #268bd2;">setInterval</span>(() =&gt; {
+<span class="linenr"> 91: </span>      <span style="color: #268bd2;">getPost</span>(post_id).<span style="color: #268bd2;">then</span>(setPost);
+<span class="linenr"> 92: </span>    }, 1000);
+<span class="linenr"> 93: </span>
+<span class="linenr"> 94: </span>    <span style="color: #859900; font-weight: bold;">return</span> () =&gt; <span style="color: #268bd2;">clearInterval</span>(intervalId);
+<span class="linenr"> 95: </span>  }, []);
+<span class="linenr"> 96: </span>
+<span class="linenr"> 97: </span>  <span style="color: #859900; font-weight: bold;">return</span> (
+<span class="linenr"> 98: </span>    &lt;&gt;
+<span class="linenr"> 99: </span>      &lt;<span style="color: #268bd2;">h1</span>&gt;HackerNews example&lt;/<span style="color: #268bd2;">h1</span>&gt;
+<span class="linenr">100: </span>      {post &amp;&amp;
+<span class="linenr">101: </span>        &lt;&gt;
+<span class="linenr">102: </span>          &lt;<span style="color: #268bd2;">h2</span>&gt;{post.title}&lt;/<span style="color: #268bd2;">h2</span>&gt;
+<span class="linenr">103: </span>          &lt;<span style="color: #268bd2;">p</span>&gt;{post.body}&lt;/<span style="color: #268bd2;">p</span>&gt;
+<span class="linenr">104: </span>        &lt;/&gt;}
+<span class="linenr">105: </span>    &lt;/&gt;
+<span class="linenr">106: </span>  );
+<span class="linenr">107: </span>}
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org5a3b7ad" class="outline-3">
+<h3 id="org5a3b7ad"><span class="section-number-3">7.2.</span> Making it reactive</h3>
+<div class="outline-text-3" id="text-7-2">
+<p>
+Reactive Service:
+</p>
+<div class="org-src-container">
+<pre class="src src-ts"><span class="linenr">  1: </span><span style="color: #859900; font-weight: bold;">import</span> <span style="color: #859900; font-weight: bold;">type</span> {
+<span class="linenr">  2: </span>  <span style="color: #268bd2;">SKStore</span>,
+<span class="linenr">  3: </span>  <span style="color: #268bd2;">TJSON</span>,
+<span class="linenr">  4: </span>  <span style="color: #268bd2;">Mapper</span>,
+<span class="linenr">  5: </span>  <span style="color: #268bd2;">EagerCollection</span>,
+<span class="linenr">  6: </span>  <span style="color: #268bd2;">NonEmptyIterator</span>,
+<span class="linenr">  7: </span>  <span style="color: #268bd2;">SimpleSkipService</span>,
+<span class="linenr">  8: </span>  <span style="color: #586e75;">//  Resource,</span>
+<span class="linenr">  9: </span>} <span style="color: #859900; font-weight: bold;">from</span> <span style="color: #2aa198;">"skip-runtime"</span>;
+<span class="linenr"> 10: </span>
+<span class="linenr"> 11: </span><span style="color: #586e75;">// import { runWithRESTServer } from "skip-runtime";</span>
+<span class="linenr"> 12: </span>
+<span class="linenr"> 13: </span><span style="color: #859900; font-weight: bold;">type</span> <span style="color: #b58900;">Post</span> = {
+<span class="linenr"> 14: </span>  <span style="color: #268bd2;">author_id</span>: <span style="color: #b58900;">number</span>;
+<span class="linenr"> 15: </span>  <span style="color: #268bd2;">title</span>: <span style="color: #b58900;">string</span>;
+<span class="linenr"> 16: </span>  <span style="color: #268bd2;">url</span>: <span style="color: #b58900;">string</span>;
+<span class="linenr"> 17: </span>  <span style="color: #268bd2;">body</span>: <span style="color: #b58900;">string</span>;
+<span class="linenr"> 18: </span>};
+<span class="linenr"> 19: </span>
+<span class="linenr"> 20: </span><span style="color: #859900; font-weight: bold;">type</span> <span style="color: #b58900;">User</span> = {
+<span class="linenr"> 21: </span>  <span style="color: #268bd2;">name</span>: <span style="color: #b58900;">string</span>;
+<span class="linenr"> 22: </span>  <span style="color: #268bd2;">email</span>: <span style="color: #b58900;">string</span>;
+<span class="linenr"> 23: </span>};
+<span class="linenr"> 24: </span>
+<span class="linenr"> 25: </span><span style="color: #859900; font-weight: bold;">type</span> <span style="color: #b58900;">Upvote</span> = {
+<span class="linenr"> 26: </span>  <span style="color: #268bd2;">post_id</span>: <span style="color: #b58900;">number</span>;
+<span class="linenr"> 27: </span>  <span style="color: #268bd2;">user_id</span>: <span style="color: #b58900;">number</span>;
+<span class="linenr"> 28: </span>};
+<span class="linenr"> 29: </span>
+<span class="linenr"> 30: </span><span style="color: #859900; font-weight: bold;">class</span> <span style="color: #b58900;">HackerNewsService</span> <span style="color: #859900; font-weight: bold;">implements</span> <span style="color: #b58900;">SimpleSkipService</span> {
+<span class="linenr"> 31: </span>  <span style="color: #859900; font-weight: bold;">private</span> <span style="color: #268bd2;">inputTables</span> = [<span style="color: #2aa198;">"posts"</span>, <span style="color: #2aa198;">"users"</span>, <span style="color: #2aa198;">"upvotes"</span>];
+<span class="linenr"> 32: </span>  <span style="color: #859900; font-weight: bold;">private</span> <span style="color: #268bd2;">resources</span> = [PostsResource];
+<span class="linenr"> 33: </span>
+<span class="linenr"> 34: </span>  <span style="color: #268bd2;">reactiveCompute</span>(
+<span class="linenr"> 35: </span>    <span style="color: #268bd2;">store</span>: <span style="color: #b58900;">SKStore</span>,
+<span class="linenr"> 36: </span>    <span style="color: #268bd2;">inputCollections</span>: <span style="color: #b58900;">Record</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">TJSON</span>, <span style="color: #b58900;">TJSON</span>&gt;&gt;,
+<span class="linenr"> 37: </span>  ): <span style="color: #b58900;">Record</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">TJSON</span>, <span style="color: #b58900;">TJSON</span>&gt;&gt; {
+<span class="linenr"> 38: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">upvotes</span> = (inputCollections.upvotes <span style="color: #859900; font-weight: bold;">as</span> <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">Upvote</span>&gt;).<span style="color: #268bd2;">map</span>(UpvotesMapper);
+<span class="linenr"> 39: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">postsWithUpvotes</span> = (inputCollections.posts <span style="color: #859900; font-weight: bold;">as</span> <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">Post</span>&gt;).<span style="color: #268bd2;">map</span>(
+<span class="linenr"> 40: </span>      PostsMapper,
+<span class="linenr"> 41: </span>      inputCollections.users <span style="color: #859900; font-weight: bold;">as</span> <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">User</span>&gt;,
+<span class="linenr"> 42: </span>      upvotes,
+<span class="linenr"> 43: </span>    );
+<span class="linenr"> 44: </span>
+<span class="linenr"> 45: </span>    <span style="color: #859900; font-weight: bold;">return</span> {
+<span class="linenr"> 46: </span>      <span style="color: #268bd2;">postsWithUpvotes</span>,
+<span class="linenr"> 47: </span>    };
+<span class="linenr"> 48: </span>  }
+<span class="linenr"> 49: </span>}
+<span class="linenr"> 50: </span>
+<span class="linenr"> 51: </span><span style="color: #859900; font-weight: bold;">class</span> <span style="color: #b58900;">UpvotesMapper</span> {
+<span class="linenr"> 52: </span>  <span style="color: #268bd2;">mapElement</span>(
+<span class="linenr"> 53: </span>    <span style="color: #268bd2;">key</span>: <span style="color: #b58900;">string</span>,
+<span class="linenr"> 54: </span>    <span style="color: #268bd2;">it</span>: <span style="color: #b58900;">NonEmptyIterator</span>&lt;<span style="color: #b58900;">Upvote</span>&gt;,
+<span class="linenr"> 55: </span>  ): <span style="color: #b58900;">Iterable</span>&lt;[<span style="color: #b58900;">number</span>, <span style="color: #b58900;">string</span>]&gt; {
+<span class="linenr"> 56: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">value</span> = it.<span style="color: #268bd2;">first</span>().post_id;
+<span class="linenr"> 57: </span>    <span style="color: #859900; font-weight: bold;">return</span> [[value, key]];
+<span class="linenr"> 58: </span>  }
+<span class="linenr"> 59: </span>}
+<span class="linenr"> 60: </span>
+<span class="linenr"> 61: </span><span style="color: #859900; font-weight: bold;">class</span> <span style="color: #b58900;">PostsMapper</span> {
+<span class="linenr"> 62: </span>  <span style="color: #268bd2;">constructor</span>(
+<span class="linenr"> 63: </span>    <span style="color: #859900; font-weight: bold;">private</span> <span style="color: #268bd2;">users</span>: <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">User</span>&gt;,
+<span class="linenr"> 64: </span>    <span style="color: #859900; font-weight: bold;">private</span> <span style="color: #268bd2;">upvotes</span>: <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">number</span>, <span style="color: #b58900;">string</span>&gt;,
+<span class="linenr"> 65: </span>  ) {}
+<span class="linenr"> 66: </span>
+<span class="linenr"> 67: </span>  <span style="color: #268bd2;">mapElement</span>(
+<span class="linenr"> 68: </span>    <span style="color: #268bd2;">key</span>: <span style="color: #b58900;">string</span>,
+<span class="linenr"> 69: </span>    <span style="color: #268bd2;">it</span>: <span style="color: #b58900;">NonEmptyIterator</span>&lt;<span style="color: #b58900;">Post</span>&gt;,
+<span class="linenr"> 70: </span>  ): <span style="color: #b58900;">Iterable</span>&lt;[[<span style="color: #b58900;">number</span>, <span style="color: #b58900;">string</span>], <span style="color: #b58900;">Post</span> &amp; { <span style="color: #268bd2;">upvotes</span>: <span style="color: #b58900;">number</span>, <span style="color: #268bd2;">author</span>: <span style="color: #b58900;">User</span> }]&gt; {
+<span class="linenr"> 71: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">post</span> = it.<span style="color: #268bd2;">first</span>();
+<span class="linenr"> 72: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">upvotes</span> = <span style="color: #859900; font-weight: bold;">this</span>.upvotes.<span style="color: #268bd2;">getArray</span>(<span style="color: #268bd2;">Number</span>(key)).length;
+<span class="linenr"> 73: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">author</span> = <span style="color: #859900; font-weight: bold;">this</span>.users.<span style="color: #268bd2;">getOne</span>(post.author_id.<span style="color: #268bd2;">toString</span>());
+<span class="linenr"> 74: </span>    <span style="color: #859900; font-weight: bold;">return</span> [[[-upvotes, key], { ...post, <span style="color: #268bd2;">upvotes</span>, <span style="color: #268bd2;">author</span> }]];
+<span class="linenr"> 75: </span>  }
+<span class="linenr"> 76: </span>}
+<span class="linenr"> 77: </span>
+<span class="linenr"> 78: </span><span style="color: #859900; font-weight: bold;">class</span> <span style="color: #b58900;">PostsCleanupKeyMapper</span> {
+<span class="linenr"> 79: </span>  <span style="color: #268bd2;">mapElement</span>(
+<span class="linenr"> 80: </span>    <span style="color: #268bd2;">key</span>: [<span style="color: #b58900;">number</span>, <span style="color: #b58900;">string</span>],
+<span class="linenr"> 81: </span>    <span style="color: #268bd2;">it</span>: <span style="color: #b58900;">NonEmptyIterator</span>&lt;<span style="color: #b58900;">TJSON</span>&gt;,
+<span class="linenr"> 82: </span>  ): <span style="color: #b58900;">Iterable</span>&lt;[<span style="color: #b58900;">string</span>, <span style="color: #b58900;">TJSON</span>]&gt; {
+<span class="linenr"> 83: </span>    <span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">post</span> = it.<span style="color: #268bd2;">first</span>();
+<span class="linenr"> 84: </span>    <span style="color: #859900; font-weight: bold;">return</span> [[key[1], post]];
+<span class="linenr"> 85: </span>  }
+<span class="linenr"> 86: </span>}
+<span class="linenr"> 87: </span>
+<span class="linenr"> 88: </span><span style="color: #859900; font-weight: bold;">const</span> <span style="color: #268bd2;">foo</span> = () =&gt; {
+<span class="linenr"> 89: </span>  <span style="color: #859900; font-weight: bold;">return</span> <span style="color: #2aa198;">"bar"</span>;
+<span class="linenr"> 90: </span>}
+<span class="linenr"> 91: </span>
+<span class="linenr"> 92: </span><span style="color: #859900; font-weight: bold;">class</span> <span style="color: #b58900;">PostsResource</span> { <span style="color: #586e75;">// implements Resource {</span>
+<span class="linenr"> 93: </span>  <span style="color: #268bd2;">constructor</span>(<span style="color: #859900; font-weight: bold;">private</span> <span style="color: #268bd2;">limit</span>: <span style="color: #b58900;">number</span>) {}
+<span class="linenr"> 94: </span>
+<span class="linenr"> 95: </span>  <span style="color: #268bd2;">reactiveCompute</span>(
+<span class="linenr"> 96: </span>    <span style="color: #268bd2;">store</span>: <span style="color: #b58900;">SKStore</span>,
+<span class="linenr"> 97: </span>    <span style="color: #268bd2;">collections</span>: <span style="color: #b58900;">Record</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">TJSON</span>, <span style="color: #b58900;">TJSON</span>&gt;&gt;,
+<span class="linenr"> 98: </span>  ): <span style="color: #b58900;">EagerCollection</span>&lt;<span style="color: #b58900;">string</span>, <span style="color: #b58900;">TJSON</span>&gt; {
+<span class="linenr"> 99: </span>    <span style="color: #268bd2;">foo</span>();
+<span class="linenr">100: </span>    <span style="color: #859900; font-weight: bold;">return</span> (collections.postWithUpvotes <span style="color: #859900; font-weight: bold;">as</span> <span style="color: #b58900;">EagerCollection</span>&lt;[<span style="color: #b58900;">number</span>, <span style="color: #b58900;">string</span>], <span style="color: #b58900;">Post</span> &amp; { <span style="color: #268bd2;">upvotes</span>: <span style="color: #b58900;">number</span>, <span style="color: #268bd2;">author</span>: <span style="color: #b58900;">User</span> }&gt;)
+<span class="linenr">101: </span>      .<span style="color: #268bd2;">take</span>(<span style="color: #859900; font-weight: bold;">this</span>.limit)
+<span class="linenr">102: </span>      .<span style="color: #268bd2;">map</span>(PostsCleanupKeyMapper);
+<span class="linenr">103: </span>  }
+<span class="linenr">104: </span>}
+<span class="linenr">105: </span>
+<span class="linenr">106: </span><span style="color: #586e75;">// Spawn a local HTTP server to support reading/writing and creating</span>
+<span class="linenr">107: </span><span style="color: #586e75;">// reactive requests.</span>
+<span class="linenr">108: </span><span style="color: #586e75;">// runWithRESTServer(new HackerNewsService());</span>
+</pre>
+</div>
+
+<p>
+Modifications to the back end:
+</p>
+<div class="org-src-container">
+<pre class="src src-shell" id="org7eafbcc">diff -u $<span style="color: #268bd2;">a</span> $<span style="color: #268bd2;">b</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-diff"><span style="background-color: #073642;">--- </span><span style="color: #839496; background-color: #002b36; font-weight: bold;">../examples/hackernews/back-end/app.py</span><span style="background-color: #073642;">      2024-09-23 01:03:01.107164568 +0200</span>
+<span style="background-color: #073642;">+++ </span><span style="color: #839496; background-color: #002b36; font-weight: bold;">../examples/hackernews/back-end/app_reactive.py</span><span style="background-color: #073642;">     2024-09-23 01:03:01.107164568 +0200</span>
+<span style="background-color: #073642;">@@ -1,5 +1,8 @@</span>
+<span style="color: #839496;"> from flask import Flask, g, json, request</span>
+<span style="color: #839496;"> import sqlite3</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">import requests</span>
+<span style="color: #859900;">+</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">REACTIVE_SERVICE_URL = 'http://localhost:3587/v1'</span>
+
+<span style="color: #839496;"> DATABASE = 'database.db'</span>
+
+<span style="background-color: #073642;">@@ -42,18 +45,35 @@</span>
+
+<span style="color: #839496;"> @app.get("/")</span>
+<span style="color: #839496;"> def posts_index():</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    db = get_db()</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    cur = db.execute(</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        """SELECT id, title, url, body,</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        FROM posts ORDER BY upvotes DESC"""</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    )</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    res = [</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        format_post(post)</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">        for post in cur.fetchall()</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    ]</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    cur.close()</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    public_key = request.headers['X-Reactive-Auth']</span>
+<span style="color: #859900;">+</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    if public_key:</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # Create reactive request for the reactive resource `posts`,</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # limited to 10 results.</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        reactive_request_id = requests.post(</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            REACTIVE_SERVICE_URL + f'/reactive/posts',</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            params = {</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">                'limit': 10</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            },</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            headers = {</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">                'X-Reactive-Auth': public_key,</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            }</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        ).content</span>
+<span style="color: #859900;">+</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # Get the initial data, which will be returned to the client</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # along with a reactive request token for subscribing to</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # further updates.</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        diff = requests.get(REACTIVE_SERVICE_URL +</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">                            f'/collections/{reactive_request_id}/diff/0').json()</span>
+<span style="color: #859900;">+</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        tick = diff['tick']</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        return diff['data'], { 'X-Reactive-Request-Id': f'{reactive_request_id}:{tick}' }</span>
+<span style="color: #859900;">+</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    else:</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # If the client didn't set the `X-Reactive-Auth` header, they</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # are not interested in reactive updates for this query, so we</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        # just respond with the current values.</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        posts = requests.get(f'/collections/{reactive_request_id}').json()</span>
+
+<span style="color: #839496;">     return json.jsonify(res)</span>
+
+<span style="background-color: #073642;">@@ -65,9 +85,17 @@</span>
+<span style="color: #839496;">     body = params['body']</span>
+
+<span style="color: #839496;">     db = get_db()</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    db.execute(f"INSERT INTO posts(title, url, body) VALUES('{title}', '{url}', '{body}')")</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    </span><span style="color: #97a35f; background-color: #2f4321;">cur =</span><span style="color: #8c9a43; background-color: #1d3732;"> db.</span><span style="color: #97a35f; background-color: #2f4321;">cursor()</span><span style="color: #97a35f; background-color: #2f4321;">
+</span><span style="color: #97a35f; background-color: #2f4321;">+</span><span style="color: #97a35f; background-color: #2f4321;">    cur.</span><span style="color: #8c9a43; background-color: #1d3732;">execute(f"INSERT INTO posts(title, url, body) VALUES('{title}', '{url}', '{body}')")</span>
+<span style="color: #97a35f; background-color: #2f4321;">+</span><span style="color: #97a35f; background-color: #2f4321;">    post_id = cur.lastrowid</span>
+<span style="color: #839496;">     db.commit()</span>
+
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    # Write into the reactive input collection.</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    requests.post(</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        REACTIVE_SERVICE_URL + f'/posts',</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        params = { **params, 'id': post_id }</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    )</span>
+<span style="color: #859900;">+</span>
+<span style="color: #839496;">     return "ok", 200</span>
+
+<span style="color: #839496;"> @app.get("/posts/&lt;int:post_id&gt;")</span>
+<span style="background-color: #073642;">@@ -85,8 +113,22 @@</span>
+
+<span style="color: #839496;"> @app.post("/posts/&lt;int:post_id&gt;/upvotes")</span>
+<span style="color: #839496;"> def upvote_post(post_id):</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    user_id = get_current_user().id</span>
+<span style="color: #859900;">+</span>
+<span style="color: #839496;">     db = get_db()</span>
+<span style="color: #dc322f;">-</span><span style="color: #d66556; background-color: #2d2c31;">    db.execute(f"INSERT INTO upvotes(post_id) VALUES({post_id})")</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    </span><span style="color: #97a35f; background-color: #2f4321;">cur =</span><span style="color: #8c9a43; background-color: #1d3732;"> db.</span><span style="color: #97a35f; background-color: #2f4321;">cursor()</span><span style="color: #97a35f; background-color: #2f4321;">
+</span><span style="color: #97a35f; background-color: #2f4321;">+</span><span style="color: #97a35f; background-color: #2f4321;">    cur.</span><span style="color: #8c9a43; background-color: #1d3732;">execute(f"INSERT INTO upvotes(post_id</span><span style="color: #97a35f; background-color: #2f4321;">, user_id</span><span style="color: #8c9a43; background-color: #1d3732;">) VALUES({post_id}</span><span style="color: #97a35f; background-color: #2f4321;">, {user_id}</span><span style="color: #8c9a43; background-color: #1d3732;">)")</span>
+<span style="color: #97a35f; background-color: #2f4321;">+</span><span style="color: #97a35f; background-color: #2f4321;">    upvote_id = cur.lastrowid</span>
+<span style="color: #839496;">     db.commit()</span>
+
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    # Write into the reactive input collection.</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    requests.post(</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        REACTIVE_SERVICE_URL + f'/upvotes',</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        params = {</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            'id': upvote_id,</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            'post_id': post_id,</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">            'user_id': user_id,</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">        }</span>
+<span style="color: #859900;">+</span><span style="color: #8c9a43; background-color: #1d3732;">    )</span>
+<span style="color: #859900;">+</span>
+     return "ok", 200
+</pre>
+</div>
+
+<p>
+Modified back end:
+</p>
+<div class="org-src-container">
+<pre class="src src-python"><span class="linenr">  1: </span><span style="color: #859900; font-weight: bold;">from</span> flask <span style="color: #859900; font-weight: bold;">import</span> Flask, g, json, request
+<span class="linenr">  2: </span><span style="color: #859900; font-weight: bold;">import</span> sqlite3
+<span class="linenr">  3: </span><span style="color: #859900; font-weight: bold;">import</span> requests
+<span class="linenr">  4: </span>
+<span class="linenr">  5: </span><span style="color: #268bd2;">REACTIVE_SERVICE_URL</span> = <span style="color: #2aa198;">'http://localhost:3587/v1'</span>
+<span class="linenr">  6: </span>
+<span class="linenr">  7: </span><span style="color: #268bd2;">DATABASE</span> = <span style="color: #2aa198;">'database.db'</span>
+<span class="linenr">  8: </span>
+<span class="linenr">  9: </span>
+<span class="linenr"> 10: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">get_db</span>():
+<span class="linenr"> 11: </span>    <span style="color: #268bd2;">db</span> = <span style="color: #839496; font-weight: bold;">getattr</span>(g, <span style="color: #2aa198;">'_database'</span>, <span style="color: #268bd2; font-weight: bold;">None</span>)
+<span class="linenr"> 12: </span>    <span style="color: #859900; font-weight: bold;">if</span> db <span style="color: #859900; font-weight: bold;">is</span> <span style="color: #268bd2; font-weight: bold;">None</span>:
+<span class="linenr"> 13: </span>        <span style="color: #268bd2;">db</span> = g.<span style="color: #268bd2;">_database</span> = sqlite3.connect(DATABASE)
+<span class="linenr"> 14: </span>    <span style="color: #859900; font-weight: bold;">return</span> db
+<span class="linenr"> 15: </span>
+<span class="linenr"> 16: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">init_db</span>():
+<span class="linenr"> 17: </span>    <span style="color: #859900; font-weight: bold;">with</span> app.app_context():
+<span class="linenr"> 18: </span>        <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr"> 19: </span>        <span style="color: #859900; font-weight: bold;">with</span> app.open_resource(<span style="color: #2aa198;">'schema.sql'</span>, mode=<span style="color: #2aa198;">'r'</span>) <span style="color: #859900; font-weight: bold;">as</span> f:
+<span class="linenr"> 20: </span>            db.cursor().executescript(f.read())
+<span class="linenr"> 21: </span>        db.commit()
+<span class="linenr"> 22: </span>
+<span class="linenr"> 23: </span>
+<span class="linenr"> 24: </span><span style="color: #268bd2;">app</span> = Flask(<span style="color: #839496; font-weight: bold;">__name__</span>)
+<span class="linenr"> 25: </span>
+<span class="linenr"> 26: </span><span style="color: #586e75;"># </span><span style="color: #586e75;">Required for local testing.</span>
+<span class="linenr"> 27: </span><span style="color: #859900; font-weight: bold;">from</span> flask_cors <span style="color: #859900; font-weight: bold;">import</span> CORS
+<span class="linenr"> 28: </span>CORS(app)
+<span class="linenr"> 29: </span>
+<span class="linenr"> 30: </span><span style="color: #b58900;">@app.teardown_appcontext</span>
+<span class="linenr"> 31: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">close_connection</span>(exception):
+<span class="linenr"> 32: </span>    <span style="color: #268bd2;">db</span> = <span style="color: #839496; font-weight: bold;">getattr</span>(g, <span style="color: #2aa198;">'_database'</span>, <span style="color: #268bd2; font-weight: bold;">None</span>)
+<span class="linenr"> 33: </span>    <span style="color: #859900; font-weight: bold;">if</span> db <span style="color: #859900; font-weight: bold;">is</span> <span style="color: #859900; font-weight: bold;">not</span> <span style="color: #268bd2; font-weight: bold;">None</span>:
+<span class="linenr"> 34: </span>        db.close()
+<span class="linenr"> 35: </span>
+<span class="linenr"> 36: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">format_post</span>(post):
+<span class="linenr"> 37: </span>    <span style="color: #859900; font-weight: bold;">return</span> {
+<span class="linenr"> 38: </span>        <span style="color: #2aa198;">"id"</span>: post[0],
+<span class="linenr"> 39: </span>        <span style="color: #2aa198;">"title"</span>: post[1],
+<span class="linenr"> 40: </span>        <span style="color: #2aa198;">"url"</span>: post[2],
+<span class="linenr"> 41: </span>        <span style="color: #2aa198;">"body"</span>: post[3],
+<span class="linenr"> 42: </span>        <span style="color: #2aa198;">"author"</span>: post[4],
+<span class="linenr"> 43: </span>        <span style="color: #2aa198;">"upvotes"</span>: post[5]
+<span class="linenr"> 44: </span>    }
+<span class="linenr"> 45: </span>
+<span class="linenr"> 46: </span><span style="color: #b58900;">@app.get</span>(<span style="color: #2aa198;">"/"</span>)
+<span class="linenr"> 47: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">posts_index</span>():
+<span class="linenr"> 48: </span>    <span style="color: #268bd2;">public_key</span> = request.headers[<span style="color: #2aa198;">'X-Reactive-Auth'</span>]
+<span class="linenr"> 49: </span>
+<span class="linenr"> 50: </span>    <span style="color: #859900; font-weight: bold;">if</span> public_key:
+<span class="linenr"> 51: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">Create reactive request for the reactive resource `posts`,</span>
+<span class="linenr"> 52: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">limited to 10 results.</span>
+<span class="linenr"> 53: </span>        <span style="color: #268bd2;">reactive_request_id</span> = requests.post(
+<span class="linenr"> 54: </span>            REACTIVE_SERVICE_URL + f<span style="color: #2aa198;">'/reactive/posts'</span>,
+<span class="linenr"> 55: </span>            params = {
+<span class="linenr"> 56: </span>                <span style="color: #2aa198;">'limit'</span>: 10
+<span class="linenr"> 57: </span>            },
+<span class="linenr"> 58: </span>            headers = {
+<span class="linenr"> 59: </span>                <span style="color: #2aa198;">'X-Reactive-Auth'</span>: public_key,
+<span class="linenr"> 60: </span>            }
+<span class="linenr"> 61: </span>        ).content
+<span class="linenr"> 62: </span>
+<span class="linenr"> 63: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">Get the initial data, which will be returned to the client</span>
+<span class="linenr"> 64: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">along with a reactive request token for subscribing to</span>
+<span class="linenr"> 65: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">further updates.</span>
+<span class="linenr"> 66: </span>        <span style="color: #268bd2;">diff</span> = requests.get(REACTIVE_SERVICE_URL +
+<span class="linenr"> 67: </span>                            f<span style="color: #2aa198;">'/collections/</span>{reactive_request_id}<span style="color: #2aa198;">/diff/0'</span>).json()
+<span class="linenr"> 68: </span>
+<span class="linenr"> 69: </span>        <span style="color: #268bd2;">tick</span> = diff[<span style="color: #2aa198;">'tick'</span>]
+<span class="linenr"> 70: </span>        <span style="color: #859900; font-weight: bold;">return</span> diff[<span style="color: #2aa198;">'data'</span>], { <span style="color: #2aa198;">'X-Reactive-Request-Id'</span>: f<span style="color: #2aa198;">'</span>{reactive_request_id}<span style="color: #2aa198;">:</span>{tick}<span style="color: #2aa198;">'</span> }
+<span class="linenr"> 71: </span>
+<span class="linenr"> 72: </span>    <span style="color: #859900; font-weight: bold;">else</span>:
+<span class="linenr"> 73: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">If the client didn't set the `X-Reactive-Auth` header, they</span>
+<span class="linenr"> 74: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">are not interested in reactive updates for this query, so we</span>
+<span class="linenr"> 75: </span>        <span style="color: #586e75;"># </span><span style="color: #586e75;">just respond with the current values.</span>
+<span class="linenr"> 76: </span>        <span style="color: #268bd2;">posts</span> = requests.get(f<span style="color: #2aa198;">'/collections/</span>{reactive_request_id}<span style="color: #2aa198;">'</span>).json()
+<span class="linenr"> 77: </span>
+<span class="linenr"> 78: </span>    <span style="color: #859900; font-weight: bold;">return</span> json.jsonify(res)
+<span class="linenr"> 79: </span>
+<span class="linenr"> 80: </span><span style="color: #b58900;">@app.post</span>(<span style="color: #2aa198;">"/posts"</span>)
+<span class="linenr"> 81: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">create_post</span>():
+<span class="linenr"> 82: </span>    <span style="color: #268bd2;">params</span> = request.json
+<span class="linenr"> 83: </span>    <span style="color: #268bd2;">title</span> = params[<span style="color: #2aa198;">'title'</span>]
+<span class="linenr"> 84: </span>    <span style="color: #268bd2;">url</span> = params[<span style="color: #2aa198;">'url'</span>]
+<span class="linenr"> 85: </span>    <span style="color: #268bd2;">body</span> = params[<span style="color: #2aa198;">'body'</span>]
+<span class="linenr"> 86: </span>
+<span class="linenr"> 87: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr"> 88: </span>    <span style="color: #268bd2;">cur</span> = db.cursor()
+<span class="linenr"> 89: </span>    cur.execute(f<span style="color: #2aa198;">"INSERT INTO posts(title, url, body) VALUES('</span>{title}<span style="color: #2aa198;">', '</span>{url}<span style="color: #2aa198;">', '</span>{body}<span style="color: #2aa198;">')"</span>)
+<span class="linenr"> 90: </span>    <span style="color: #268bd2;">post_id</span> = cur.lastrowid
+<span class="linenr"> 91: </span>    db.commit()
+<span class="linenr"> 92: </span>
+<span class="linenr"> 93: </span>    <span style="color: #586e75;"># </span><span style="color: #586e75;">Write into the reactive input collection.</span>
+<span class="linenr"> 94: </span>    requests.post(
+<span class="linenr"> 95: </span>        REACTIVE_SERVICE_URL + f<span style="color: #2aa198;">'/posts'</span>,
+<span class="linenr"> 96: </span>        params = { **params, <span style="color: #2aa198;">'id'</span>: post_id }
+<span class="linenr"> 97: </span>    )
+<span class="linenr"> 98: </span>
+<span class="linenr"> 99: </span>    <span style="color: #859900; font-weight: bold;">return</span> <span style="color: #2aa198;">"ok"</span>, 200
+<span class="linenr">100: </span>
+<span class="linenr">101: </span><span style="color: #b58900;">@app.get</span>(<span style="color: #2aa198;">"/posts/&lt;int:post_id&gt;"</span>)
+<span class="linenr">102: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">get_post</span>(post_id):
+<span class="linenr">103: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">104: </span>
+<span class="linenr">105: </span>    <span style="color: #268bd2;">cur</span> = db.execute(f<span style="color: #2aa198;">"""SELECT id, title, url, body,</span>
+<span class="linenr">106: </span><span style="color: #2aa198;">    (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,</span>
+<span class="linenr">107: </span><span style="color: #2aa198;">    (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes</span>
+<span class="linenr">108: </span><span style="color: #2aa198;">    FROM posts WHERE id=</span>{post_id}<span style="color: #2aa198;">"""</span>)
+<span class="linenr">109: </span>    <span style="color: #268bd2;">res</span> = format_post(cur.fetchone())
+<span class="linenr">110: </span>    cur.close()
+<span class="linenr">111: </span>
+<span class="linenr">112: </span>    <span style="color: #859900; font-weight: bold;">return</span> json.jsonify(res)
+<span class="linenr">113: </span>
+<span class="linenr">114: </span><span style="color: #b58900;">@app.post</span>(<span style="color: #2aa198;">"/posts/&lt;int:post_id&gt;/upvotes"</span>)
+<span class="linenr">115: </span><span style="color: #859900; font-weight: bold;">def</span> <span style="color: #268bd2;">upvote_post</span>(post_id):
+<span class="linenr">116: </span>    <span style="color: #268bd2;">user_id</span> = get_current_user().<span style="color: #839496; font-weight: bold;">id</span>
+<span class="linenr">117: </span>
+<span class="linenr">118: </span>    <span style="color: #268bd2;">db</span> = get_db()
+<span class="linenr">119: </span>    <span style="color: #268bd2;">cur</span> = db.cursor()
+<span class="linenr">120: </span>    cur.execute(f<span style="color: #2aa198;">"INSERT INTO upvotes(post_id, user_id) VALUES(</span>{post_id}<span style="color: #2aa198;">, </span>{user_id}<span style="color: #2aa198;">)"</span>)
+<span class="linenr">121: </span>    <span style="color: #268bd2;">upvote_id</span> = cur.lastrowid
+<span class="linenr">122: </span>    db.commit()
+<span class="linenr">123: </span>
+<span class="linenr">124: </span>    <span style="color: #586e75;"># </span><span style="color: #586e75;">Write into the reactive input collection.</span>
+<span class="linenr">125: </span>    requests.post(
+<span class="linenr">126: </span>        REACTIVE_SERVICE_URL + f<span style="color: #2aa198;">'/upvotes'</span>,
+<span class="linenr">127: </span>        params = {
+<span class="linenr">128: </span>            <span style="color: #2aa198;">'id'</span>: upvote_id,
+<span class="linenr">129: </span>            <span style="color: #2aa198;">'post_id'</span>: post_id,
+<span class="linenr">130: </span>            <span style="color: #2aa198;">'user_id'</span>: user_id,
+<span class="linenr">131: </span>        }
+<span class="linenr">132: </span>    )
+<span class="linenr">133: </span>
+<span class="linenr">134: </span>    <span style="color: #859900; font-weight: bold;">return</span> <span style="color: #2aa198;">"ok"</span>, 200
+</pre>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1" role="doc-backlink">1</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+In other words, a <b>reactive service</b> does not deal with the
+HTTP request/response cycle, but is instead invoked by a REST service
+(for instance implemented using Flask, node.js, or Ruby on
+Rails). This differs from the previous design where the <b>reactive
+service</b> owned the HTTP request/response cycle, delegating to user
+code by invoking the <code>update()</code> callback. That design had the downside
+of making it difficult to leverage existing web frameworks for the
+REST part.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.2" class="footnum" href="#fnr.2" role="doc-backlink">2</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+This is just one possible way to use a <b>reactive
+service</b>. Developers may instead decide to create a reactive request
+only when explicitly requested. They may also choose not to respond
+with initial data, relying on mirroring for the entire sync.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.3" class="footnum" href="#fnr.3" role="doc-backlink">3</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+The exact API of mirror regarding init data is still TBD.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.4" class="footnum" href="#fnr.4" role="doc-backlink">4</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+Writing to a <b>reactive service</b> input collection isn't a
+substitute for writing into a regular database (such as
+PostgreSQL). In most cases, the write into the <b>reactive service</b> will
+happen after an actual write to a regular database.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.5" class="footnum" href="#fnr.5" role="doc-backlink">5</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+This differs from the previous design where a shared private
+key was generated server-side and communicated to the client through a
+side-channel.
+</p></div></div>
+
+
+</div>
+</div></div>
+<div id="postamble" class="status">
+<p class="date">Created: 2024-09-23 Mon 11:41</p>
+<p class="validation"><a href="https://validator.w3.org/check?uri=referer">Validate</a></p>
+</div>
+</body>
+</html>
