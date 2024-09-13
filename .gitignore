@@ -25,3 +25,7 @@ skdb.wasm
 bun.lockb
 package-lock.json
 /www/docs/api/
+/skdb-ts-thin/src/**/*.js
+/skdb-ts-thin/src/**/*.js.map
+/skdb-ts-thin/src/**/*.d.ts
+/skdb-ts-thin/src/**/*.d.ts.map

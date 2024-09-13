@@ -415,28 +415,32 @@ fun toSkdb(
   DBUtils.toTable(eager, table, context, mapHandle.toRow, connected != 0)
 }
 
-@export("SkipRuntime_getFromTable")
-fun getFromTable(
-  _context: mutable Context,
-  _table: String,
-  _key: SKJSON.CJSON,
-  _index: SKJSON.CJSON,
-): SKJSON.CJSON {
-  invariant_violation("TODO")
-}
-
-@export("SkipRuntime_getArray")
-fun getArray(
+fun getArray_(
   context: mutable Context,
   handleId: String,
   key: SKJSON.CJSON,
 ): SKJSON.CJArray {
   eager = EHandle(JSONID::keyType, JSONFile::type, DirName::create(handleId));
-  SKJSON.CJArray(eager.getArray(context, JSONID(key)).map(v -> v.value))
+  SKJSON.CJArray(eager.getArray(context, JSONID(key)).map(v -> v.value));
 }
 
-@export("SkipRuntime_get")
-fun get(
+@export("SkipRuntime_getArray")
+fun getArray(
+  optContext: ?mutable Context,
+  handleId: String,
+  key: SKJSON.CJSON,
+): SKJSON.CJArray {
+  optContext match {
+  | Some(context) -> getArray_(context, handleId, key)
+  | _ ->
+    SKStore.runWithResult(context ~> getArray_(context, handleId, key)) match {
+    | Success(v) -> v
+    | Failure(err) -> throw err
+    }
+  }
+}
+
+fun get_(
   context: mutable Context,
   handleId: String,
   key: SKJSON.CJSON,
@@ -445,8 +449,23 @@ fun get(
   eager.get(context, JSONID(key)).value
 }
 
-@export("SkipRuntime_maybeGet")
-fun maybeGet(
+@export("SkipRuntime_get")
+fun get(
+  optContext: ?mutable Context,
+  handleId: String,
+  key: SKJSON.CJSON,
+): SKJSON.CJSON {
+  optContext match {
+  | Some(context) -> get_(context, handleId, key)
+  | _ ->
+    SKStore.runWithResult(context ~> get_(context, handleId, key)) match {
+    | Success(v) -> v
+    | Failure(err) -> throw err
+    }
+  }
+}
+
+fun maybeGet_(
   context: mutable Context,
   handleId: String,
   key: SKJSON.CJSON,
@@ -455,6 +474,22 @@ fun maybeGet(
   eager.maybeGet(context, JSONID(key)) match {
   | Some(v) -> v.value
   | None() -> SKJSON.CJNull()
+  }
+}
+
+@export("SkipRuntime_maybeGet")
+fun maybeGet(
+  optContext: ?mutable Context,
+  handleId: String,
+  key: SKJSON.CJSON,
+): SKJSON.CJSON {
+  optContext match {
+  | Some(context) -> maybeGet_(context, handleId, key)
+  | _ ->
+    SKStore.runWithResult(context ~> maybeGet_(context, handleId, key)) match {
+    | Success(v) -> v
+    | Failure(err) -> throw err
+    }
   }
 }
 

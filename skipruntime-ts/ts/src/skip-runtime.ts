@@ -22,7 +22,7 @@ import type {
   Remote,
   Database,
 } from "./skipruntime_api.js";
-import { runWithServer_ } from "./internals/skipruntime_process.js";
+import { runWithRESTServer_ } from "./internals/skipruntime_process.js";
 export { TimeQueue } from "./internals/skipruntime_module.js";
 export type {
   SKStore,
@@ -186,10 +186,9 @@ export function freeze<T>(value: T): T {
   }
 }
 
-export async function runWithServer(
+export async function runWithRESTServer(
   service: SimpleSkipService,
-  options: Record<string, any>,
-  database?: Database,
+  options: Record<string, any> = { port: 3587 },
 ) {
-  await runWithServer_(service, createSKStore, options, database);
+  return runWithRESTServer_(service, createSKStore, options);
 }

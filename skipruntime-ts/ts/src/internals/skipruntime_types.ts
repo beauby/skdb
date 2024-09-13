@@ -67,12 +67,6 @@ export interface Context {
     call: (key: K, params: P) => Promise<AValue<V, M>>,
   ) => string;
 
-  getFromTable: <K extends TJSON, R>(
-    table: string,
-    key: K,
-    index?: string,
-  ) => R[];
-
   getArray: <K extends TJSON, V>(collection: string, key: K) => V[];
   getOne: <K extends TJSON, V>(collection: string, key: K) => V;
   maybeGetOne: <K extends TJSON, V>(collection: string, key: K) => Opt<V>;
@@ -171,25 +165,18 @@ export interface FromWasm {
     accInit: ptr<Internal.CJSON>,
   ): ptr<Internal.String>;
 
-  SkipRuntime_getFromTable(
-    ctx: ptr<Internal.Context>,
-    table: ptr<Internal.String>,
-    key: ptr<Internal.CJSON>,
-    index: ptr<Internal.CJSON>,
-  ): ptr<Internal.CJSON>;
-
   SkipRuntime_getArray(
-    ctx: ptr<Internal.Context>,
+    ctx: ptr<Internal.Context> | null,
     getterHdl: ptr<Internal.String>,
     key: ptr<Internal.CJSON>,
   ): ptr<Internal.CJArray>;
   SkipRuntime_get(
-    ctx: ptr<Internal.Context>,
+    ctx: ptr<Internal.Context> | null,
     getterHdl: ptr<Internal.String>,
     key: ptr<Internal.CJSON>,
   ): ptr<Internal.CJSON>;
   SkipRuntime_maybeGet(
-    ctx: ptr<Internal.Context>,
+    ctx: ptr<Internal.Context> | null,
     getterHdl: ptr<Internal.String>,
     key: ptr<Internal.CJSON>,
   ): ptr<Internal.CJSON>;

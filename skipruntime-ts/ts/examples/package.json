@@ -2,9 +2,13 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^22.5.4",
+    "@types/ws": "^8.5.12",
     "prettier": "3.2.5"
   },
   "dependencies": {
+    "express": "^4.21.0",
+    "skdb-ts-thin": "file:../../../skdb-ts-thin",
+    "util": "^0.12.5",
     "ws": "^8.18.0"
   }
 }

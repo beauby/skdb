@@ -28,6 +28,7 @@ import type {
   Local,
   EntryPoint,
   Inputs,
+  CollectionReader,
 } from "../skipruntime_api.js";
 
 // prettier-ignore
@@ -48,16 +49,34 @@ function assertNoKeysNaN<K extends TJSON, V extends TJSON>(
 }
 export const serverResponseSuffix = "__skdb_mirror_feedback";
 
+export class EagerReader<K extends TJSON, V extends TJSON>
+  implements CollectionReader<K, V>
+{
+  constructor(
+    protected context: Context,
+    protected eagerHdl: string,
+  ) {}
+
+  getArray(key: K): V[] {
+    return this.context.getArray(this.eagerHdl, key);
+  }
+
+  getOne(key: K): V {
+    return this.context.getOne(this.eagerHdl, key);
+  }
+
+  maybeGetOne(key: K): Opt<V> {
+    return this.context.maybeGetOne(this.eagerHdl, key);
+  }
+}
+
 class EagerCollectionImpl<K extends TJSON, V extends TJSON>
+  extends EagerReader<K, V>
   implements EagerCollection<K, V>
 {
   //
-  protected context: Context;
-  eagerHdl: string;
-
   constructor(context: Context, eagerHdl: string) {
-    this.context = context;
-    this.eagerHdl = eagerHdl;
+    super(context, eagerHdl);
     Object.defineProperty(this, "__sk_frozen", {
       enumerable: false,
       writable: false,
@@ -73,18 +92,6 @@ class EagerCollectionImpl<K extends TJSON, V extends TJSON>
     eagerHdl: string,
   ): EagerCollection<K2, V2> {
     return new EagerCollectionImpl<K2, V2>(this.context, eagerHdl);
-  }
-
-  getArray(key: K): V[] {
-    return this.context.getArray(this.eagerHdl, key);
-  }
-
-  getOne(key: K): V {
-    return this.context.getOne(this.eagerHdl, key);
-  }
-
-  maybeGetOne(key: K): Opt<V> {
-    return this.context.maybeGetOne(this.eagerHdl, key);
   }
 
   size = () => {
@@ -154,6 +161,10 @@ class EagerCollectionImpl<K extends TJSON, V extends TJSON>
       table.isConnected(),
     );
   }
+
+  toCollectionAccess() {
+    return "todo" as any;
+  }
 }
 
 class LazyCollectionImpl<K extends TJSON, V extends TJSON>
@@ -188,10 +199,10 @@ class LazyCollectionImpl<K extends TJSON, V extends TJSON>
 export class LSelfImpl<K extends TJSON, V extends TJSON>
   implements LazyCollection<K, V>
 {
-  protected context: Context;
-  protected lazyHdl: ptr<Internal.LHandle>;
-
-  constructor(context: Context, lazyHdl: ptr<Internal.LHandle>) {
+  constructor(
+    protected context: Context,
+    protected lazyHdl: ptr<Internal.LHandle>,
+  ) {
     this.context = context;
     this.lazyHdl = lazyHdl;
     Object.defineProperty(this, "__sk_frozen", {
@@ -239,10 +250,6 @@ export class TableCollectionImpl<R extends TJSON[]>
 
   isConnected() {
     return this.skdb.connectedRemote ? true : false;
-  }
-
-  get(key: TJSON, index?: string | undefined) {
-    return this.context.getFromTable(this.getName(), key, index);
   }
 
   map<K extends TJSON, V extends TJSON, Params extends Param[]>(

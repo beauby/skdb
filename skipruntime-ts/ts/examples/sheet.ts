@@ -8,10 +8,9 @@ import type {
   TJSON,
   SimpleSkipService,
   SimpleServiceOutput,
-  Writer,
 } from "skip-runtime";
 
-import { runWithServer } from "skip-runtime";
+import { runWithRESTServer } from "skip-runtime";
 
 class ComputeExpression implements LazyCompute<string, string> {
   constructor(private skall: EagerCollection<string, TJSON>) {}
@@ -68,16 +67,7 @@ class CallCompute implements Mapper<string, TJSON, string, TJSON> {
   }
 }
 
-type Command = {
-  command: string;
-  payload: TJSON;
-};
-
-type Set = { key: string; value: number };
-type Delete = { keys: string[] };
-
 class Service implements SimpleSkipService {
-  name: string = "sheet";
   inputTables = ["cells"];
 
   reactiveCompute(
@@ -94,26 +84,8 @@ class Service implements SimpleSkipService {
     // Parsing => Immutable ast
     // Evaluation => Compute tree with context
     const output = cells.map(CallCompute, evaluator);
-    return {
-      output,
-      update: async (event: TJSON, writers: Record<string, Writer<TJSON>>) => {
-        const cmd = event as Command;
-        if (cmd.command == "set") {
-          const payload = cmd.payload as Set[];
-          for (const e of payload) {
-            const writer = writers["cells"];
-            writer.set(e.key, e.value);
-          }
-        } else if (cmd.command == "delete") {
-          const payload = cmd.payload as Delete[];
-          for (const e of payload) {
-            const writer = writers["cells"];
-            writer.delete(e.keys);
-          }
-        }
-      },
-    };
+    return { output };
   }
 }
 
-runWithServer(new Service(), { port: 8082 });
+runWithRESTServer(new Service());

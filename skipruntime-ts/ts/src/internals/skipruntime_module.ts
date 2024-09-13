@@ -152,44 +152,61 @@ export class ContextImpl implements Context {
     return this.skjson.importString(resHdlPtr);
   }
 
-  getFromTable<K extends TJSON, R>(table: string, key: K, index?: string) {
-    return this.skjson.importJSON(
-      this.exports.SkipRuntime_getFromTable(
-        this.pointer(),
-        this.skjson.exportString(table),
-        this.skjson.exportJSON(key),
-        this.skjson.exportJSON(index ?? null),
-      ),
-    ) as R[];
-  }
-
   getArray<K extends TJSON, V>(eagerHdl: string, key: K) {
-    return this.skjson.importJSON(
-      this.exports.SkipRuntime_getArray(
-        this.pointer(),
-        this.skjson.exportString(eagerHdl),
-        this.skjson.exportJSON(key),
-      ),
-    ) as V[];
+    const ctx = this.ref.get();
+    const call = () =>
+      this.skjson.importJSON(
+        this.exports.SkipRuntime_getArray(
+          ctx,
+          this.skjson.exportString(eagerHdl),
+          this.skjson.exportJSON(key),
+        ),
+      ) as V[];
+    if (ctx != null) {
+      return call();
+    }
+    return this.skjson.runWithGC(() => {
+      const result = call();
+      return this.skjson.clone(result);
+    });
   }
 
   getOne<K extends TJSON, V>(eagerHdl: string, key: K) {
-    return this.skjson.importJSON(
-      this.exports.SkipRuntime_get(
-        this.pointer(),
-        this.skjson.exportString(eagerHdl),
-        this.skjson.exportJSON(key),
-      ),
-    ) as V;
+    const ctx = this.ref.get();
+    const call = () =>
+      this.skjson.importJSON(
+        this.exports.SkipRuntime_get(
+          ctx,
+          this.skjson.exportString(eagerHdl),
+          this.skjson.exportJSON(key),
+        ),
+      ) as V;
+    if (ctx != null) {
+      return call();
+    }
+    return this.skjson.runWithGC(() => {
+      const result = call();
+      return this.skjson.clone(result);
+    });
   }
 
   maybeGetOne<K extends TJSON, V>(eagerHdl: string, key: K) {
-    const res = this.exports.SkipRuntime_maybeGet(
-      this.pointer(),
-      this.skjson.exportString(eagerHdl),
-      this.skjson.exportJSON(key),
-    );
-    return this.skjson.importJSON(res) as Opt<V>;
+    const ctx = this.ref.get();
+    const call = () =>
+      this.skjson.importJSON(
+        this.exports.SkipRuntime_maybeGet(
+          this.pointer(),
+          this.skjson.exportString(eagerHdl),
+          this.skjson.exportJSON(key),
+        ),
+      ) as Opt<V>;
+    if (ctx != null) {
+      return call();
+    }
+    return this.skjson.runWithGC(() => {
+      const result = call();
+      return this.skjson.clone(result);
+    });
   }
 
   getArrayLazy<K extends TJSON, V>(lazyHdl: string, key: K) {

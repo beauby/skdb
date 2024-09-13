@@ -408,6 +408,7 @@ export interface SKJSON extends Shared {
   importString: (v: ptr<Internal.String>) => string;
   exportString: (v: string) => ptr<Internal.String>;
   runWithGC: <T>(fn: () => T) => T;
+  clone: <T>(v: T) => T;
 }
 
 class SKJSONShared implements SKJSON {
@@ -418,6 +419,7 @@ class SKJSONShared implements SKJSON {
   importString: (v: ptr<Internal.String>) => string;
   exportString: (v: string) => ptr<Internal.String>;
   runWithGC: <T>(fn: () => T) => T;
+  clone: <T>(v: T) => T;
 
   constructor(
     importJSON: (value: ptr<Internal.CJSON>, copy?: boolean) => Exportable,
@@ -425,12 +427,14 @@ class SKJSONShared implements SKJSON {
     importString: (v: ptr<Internal.String>) => string,
     exportString: (v: string) => ptr<Internal.String>,
     runWithGC: <T>(fn: () => T) => T,
+    clone: <T>(v: T) => T,
   ) {
     this.importJSON = importJSON;
     this.exportJSON = exportJSON;
     this.importString = importString;
     this.exportString = exportString;
     this.runWithGC = runWithGC;
+    this.clone = clone;
   }
 
   importOptJSON(value: Opt<ptr<Internal.CJSON>>, copy?: boolean): Exportable {
@@ -515,6 +519,7 @@ class LinksImpl implements Links {
         utils.importString,
         utils.exportString,
         utils.runWithGc,
+        clone,
       ),
     );
   };

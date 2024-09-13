@@ -1,14 +1,143 @@
-import type { JSONObject } from "skip-runtime";
+import type { TJSON, EntryPoint } from "skip-runtime";
 import { createInterface } from "readline";
-// @ts-ignore
-import { WebSocket } from "ws";
+import { connect, Table, type Creds } from "skdb-ts-thin";
+
+export { Table };
 
 export interface ClientDefinition {
   port: number;
   scenarios: () => Step[][];
 }
 
-type Step = JSONObject;
+function toHttp(entrypoint: EntryPoint) {
+  if (entrypoint.secured)
+    return `https://${entrypoint.host}:${entrypoint.port}`;
+  return `http://${entrypoint.host}:${entrypoint.port}`;
+}
+
+async function send(
+  url: string,
+  method: "POST" | "GET" | "PUT" | "DELETE" = "GET",
+  data?: TJSON | undefined,
+) {
+  if (typeof XMLHttpRequest != "undefined") {
+    return new Promise<TJSON>(function (resolve, reject) {
+      let xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader("Content-Type", "application/json");
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          try {
+            if (xhr.status == 200) resolve(JSON.parse(xhr.responseText));
+            else
+              reject(
+                new Error(
+                  `An HTTP error occurred: ${xhr.status} ${xhr.responseText}`,
+                ),
+              );
+          } catch (e) {
+            reject(e);
+          }
+        }
+      };
+      xhr.onerror = function () {
+        reject(
+          new Error(`An error occurred while sending the request '${url}'.`),
+        );
+      };
+      xhr.ontimeout = function () {
+        reject(new Error(`The request '${url}' timed out.`));
+      };
+      xhr.onabort = function () {
+        reject(new Error(`The request '${url}' aborted.`));
+      };
+      xhr.send(data ? JSON.stringify(data) : undefined);
+    });
+  } else {
+    try {
+      const body = data ? JSON.stringify(data) : undefined;
+      console.log("fetch", url, method, body);
+      const response = await fetch(url, {
+        method,
+        body,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(1000),
+      });
+      const responseText = await response.text();
+      return JSON.parse(responseText);
+    } catch (e: any) {
+      throw e;
+    }
+  }
+}
+
+type Entry = {
+  key: string;
+  value: TJSON;
+};
+
+type Write = {
+  collection: string;
+  entries: Entry[];
+};
+
+type Delete = {
+  collection: string;
+  keys: string[];
+};
+
+class SkipHttpAccessV1 {
+  private entrypoint: string;
+  constructor(
+    entrypoint: EntryPoint = {
+      host: "localhost",
+      port: 3587,
+    },
+  ) {
+    this.entrypoint = toHttp(entrypoint);
+  }
+
+  async read(collection: string, id: string) {
+    return send(`${this.entrypoint}/v1/one/${collection}/${id}`);
+  }
+
+  async readAll(collection: string) {
+    return send(`${this.entrypoint}/v1/${collection}`);
+  }
+
+  async write(collection: string, id: string, data: TJSON) {
+    return send(`${this.entrypoint}/v1/${collection}/${id}`, "POST", data);
+  }
+
+  async writeMany(data: Write[]) {
+    return send(`${this.entrypoint}/v1/many`, "POST", data);
+  }
+
+  async detele(collection: string, id: string) {
+    return send(`${this.entrypoint}/v1/${collection}/${id}`, "DELETE");
+  }
+
+  async deteleMany(data: Delete[]) {
+    return send(`${this.entrypoint}/v1/many`, "DELETE", data);
+  }
+
+  async request(id: string) {
+    return send(
+      `${this.entrypoint}/v1/one/__query/${encodeURIComponent(encodeURIComponent(id))}`,
+    );
+  }
+}
+
+type RequestQuery = { type: "request"; payload: string };
+type WriteQuery = { type: "write"; payload: Write[] };
+type DeleteQuery = { type: "delete"; payload: Delete[] };
+
+export type Step = RequestQuery | WriteQuery | DeleteQuery;
 
 class Session {
   scenario: Step[];
@@ -32,9 +161,9 @@ class Session {
       this.error("The scenario as no more entries.");
       return false;
     }
-    const line = this.scenario[this.current++];
-    console.log(">>", JSON.stringify(line));
-    this.perform(line);
+    const step = this.scenario[this.current++];
+    console.log(">>", step.type, JSON.stringify(step.payload));
+    this.perform(step);
     return this.current < this.scenario.length;
   }
 
@@ -143,73 +272,132 @@ class Player {
   }
 }
 
-export async function run(scenarios: Step[][], port: number) {
-  const ws = new WebSocket(`ws://localhost:${port}`);
-  ws.on("error", console.error);
-  ws.on("close", () => process.exit(2));
-  ws.on("message", (data: Buffer) => {
-    console.log(data.toString());
+export async function run(scenarios: Step[][], port: number = 3587) {
+  const access = new SkipHttpAccessV1({
+    host: "localhost",
+    port,
   });
-  ws.on("open", function open() {
-    const online = (line: string) => {
-      const error = console.error;
-      try {
-        const patterns: [RegExp, (...args: string[]) => any][] = [
-          [
-            /^get (.*)$/g,
-            (query: string) => {
-              const jsquery = JSON.parse(query);
-              jsquery["type"] = "get";
-              ws.send(jsquery);
-            },
-          ],
-          [
-            /^post (.*)$/g,
-            (query: string) => {
-              const jsquery = JSON.parse(query);
-              jsquery["type"] = "post";
-              ws.send(jsquery);
-            },
-          ],
-        ];
-        let done = false;
-        for (let i = 0; i < patterns.length; i++) {
-          const pattern = patterns[i];
-          const matches = [...line.matchAll(pattern[0])];
-          if (matches.length > 0) {
-            done = true;
-            const args = matches[0].map((v) => v.toString());
-            args.shift();
-            pattern[1].apply(null, args);
-          }
+  const online = async (line: string) => {
+    const error = console.error;
+    try {
+      const patterns: [RegExp, (...args: string[]) => void][] = [
+        [
+          /^request (.*)$/g,
+          (query: string) => {
+            access.request(query).then(console.log).catch(console.error);
+          },
+        ],
+        [
+          /^write (.*)$/g,
+          async (query: string) => {
+            const jsquery = JSON.parse(query);
+            access.writeMany(jsquery).then(console.log).catch(console.error);
+          },
+        ],
+        [
+          /^delete (.*)$/g,
+          async (query: string) => {
+            const jsquery = JSON.parse(query);
+            access.deteleMany(jsquery).then(console.log).catch(console.error);
+          },
+        ],
+      ];
+      let done = false;
+      for (let i = 0; i < patterns.length; i++) {
+        const pattern = patterns[i];
+        const matches = [...line.matchAll(pattern[0])];
+        if (matches.length > 0) {
+          done = true;
+          const args = matches[0].map((v) => v.toString());
+          args.shift();
+          pattern[1].apply(null, args);
         }
-        if (!done) {
-          error(`Unknow command line '${line}'`);
-        }
-      } catch (e: any) {
-        const message = e instanceof Error ? e.message : JSON.stringify(e);
-        error(message);
       }
-    };
-    const player = new Player(
-      scenarios,
-      online,
-      (event) => ws.send(JSON.stringify(event)),
-      console.error,
-    );
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      prompt: "> ",
-    });
-    rl.prompt();
-    rl.on("line", (line: string) => {
-      if (line == "exit") {
-        process.exit(0);
+      if (!done) {
+        error(`Unknow command line '${line}'`);
+      }
+    } catch (e: any) {
+      const message = e instanceof Error ? e.message : JSON.stringify(e);
+      error(message);
+    }
+  };
+  const player = new Player(
+    scenarios,
+    online,
+    (step) => {
+      if (step.type == "request") {
+        access.request(step.payload).then(console.log).catch(console.error);
+      } else if (step.type == "write") {
+        access.writeMany(step.payload).then(console.log).catch(console.error);
       } else {
-        player.online(line);
-        rl.prompt();
+        access.deteleMany(step.payload).then(console.log).catch(console.error);
       }
-    });
+    },
+    console.error,
+  );
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: "> ",
   });
+  rl.prompt();
+  rl.on("line", (line: string) => {
+    if (line == "exit") {
+      process.exit(0);
+    } else {
+      player.online(line);
+      rl.prompt();
+    }
+  });
+}
+
+export const LOCAL_SERVER: string = "ws://localhost:3586";
+
+async function getCreds(
+  database: string,
+  entryPoint: EntryPoint = { host: "localhost", port: 3586 },
+) {
+  const creds = new Map();
+  const resp = await fetch(
+    `http${entryPoint.secured ? "s" : ""}://${entryPoint.host}:${
+      entryPoint.port
+    }/dbs/${database}/users`,
+  );
+  const data = await resp.text();
+  const users = data
+    .split("\n")
+    .filter((line) => line.trim() != "")
+    .map((line) => JSON.parse(line));
+  for (const user of users) {
+    creds.set(user.accessKey, user.privateKey);
+  }
+  return creds;
+}
+
+async function creds(): Promise<Creds> {
+  const dbinfo = await getCreds("skstore");
+  const keyBytes = Buffer.from(dbinfo.get("root"), "base64");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return {
+    accessKey: "root",
+    privateKey: key,
+    deviceUuid: crypto.randomUUID(),
+  };
+}
+
+export async function subscribe(
+  init_cb: (rows: Table) => void,
+  update_cb: (added: Table, removed: Table) => void,
+) {
+  const skipclient = await connect(LOCAL_SERVER, "skstore", await creds(), [
+    { table: "__sk_responses" },
+  ]);
+
+  return skipclient.subscribe("__sk_responses", init_cb, update_cb);
 }

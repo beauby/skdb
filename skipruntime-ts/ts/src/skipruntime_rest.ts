@@ -95,13 +95,13 @@ export type HTTPRESTWriteRequest = {
   writer: (
     variables: string[],
     payload: TJSON,
-    writers: Record<string, Writer<TJSON>>,
+    writers: Record<string, Writer>,
     remotes: Record<string, (event: TJSON) => Promise<void>>,
   ) => Promise<void>;
 };
 
 export type Write = (
-  writers: Record<string, Writer<TJSON>>,
+  writers: Record<string, Writer>,
   remotes: Record<string, (event: TJSON) => Promise<void>>,
 ) => Promise<void>;
 
@@ -117,7 +117,7 @@ export class RESTWriter {
     writer: (
       variables: string[],
       payload: TJSON,
-      writers: Record<string, Writer<TJSON>>,
+      writers: Record<string, Writer>,
       remotes: Record<string, (event: TJSON) => Promise<void>>,
     ) => Promise<void>,
   ) {
@@ -134,7 +134,7 @@ export class RESTWriter {
       const variables = resolve(post.path, manager.path);
       if (variables == null) continue;
       return (
-        writers: Record<string, Writer<TJSON>>,
+        writers: Record<string, Writer>,
         remotes: Record<string, (event: TJSON) => Promise<void>>,
       ) => {
         return manager.writer(variables, post.payload, writers, remotes);

@@ -289,11 +289,7 @@ export interface AsyncLazyCollection<
   M extends TJSON,
 > extends LazyCollection<K, Loadable<V, M>> {}
 
-/**
- * An _Eager_ reactive collection, whose values are computed eagerly and kept up
- * to date whenever inputs are changed
- */
-export interface EagerCollection<K extends TJSON, V extends TJSON> {
+export interface CollectionReader<K extends TJSON, V extends TJSON> {
   /**
    * Get (and potentially compute) all values mapped to by some key of a lazy reactive
    * collection.
@@ -311,7 +307,24 @@ export interface EagerCollection<K extends TJSON, V extends TJSON> {
    * @returns the value for this `key`, or null if no such value exists
    */
   maybeGetOne(key: K): Opt<V>;
+}
 
+export interface CollectionAccess<K extends TJSON, V extends TJSON>
+  extends CollectionReader<K, V> {
+  /**
+   * Get all values of an eager reactive collection, if one exists.
+   * Exist only in .
+   * @returns the values for this `key`, or null if no such value exists
+   */
+  getAll(): { key: TJSON; value: TJSON }[];
+}
+
+/**
+ * An _Eager_ reactive collection, whose values are computed eagerly and kept up
+ * to date whenever inputs are changed
+ */
+export interface EagerCollection<K extends TJSON, V extends TJSON>
+  extends CollectionReader<K, V> {
   /**
    * Create a new eager collection by mapping some computation over this one
    * @param {Mapper} mapper - function to apply to each element of this collection
@@ -358,6 +371,8 @@ export interface EagerCollection<K extends TJSON, V extends TJSON> {
     ...params: Params
   ): void;
 
+  toCollectionAccess(): CollectionAccess<K, V>;
+
   getId(): string;
 }
 
@@ -397,12 +412,48 @@ export type Inputs = {
 };
 
 /**
+ * This interface supports SQL-like operations accessing the data in a
+ * collection.  These operations are available only on collections which satisfy certain
+ * structural constraints, such as those produced by `mapTo`.
+ */
+export interface TableReader {
+  getName(): string;
+  /**
+   * Select entries in the table
+   * @param where - the column values to filter entries
+   * @param columns - the columns to include in the output; include all by default
+   * @throws {Error} when an index constraints is broken
+   */
+  select(where: JSONObject, columns?: string[]): JSONObject[];
+
+  /**
+   * Register a callback to be invoked on the `rows` of this table whenever data changes
+   * @param update - the callback to invoke when data changes
+   * @returns a callback `close` to terminate and clean up the watch
+   */
+  watch: (
+    update: (rows: JSONObject[]) => void,
+    feedback?: boolean,
+  ) => { close: () => void };
+  /**
+   * Register a callback to be invoked on the `added` and `removed` rows of this table
+   * whenever data changes
+   * @param init - a callback to invoke on table initialization and reset
+   * @param update - the callback to invoke on changes
+   */
+  watchChanges: (
+    init: (rows: JSONObject[]) => void,
+    update: (added: JSONObject[], removed: JSONObject[]) => void,
+    feedback?: boolean,
+  ) => { close: () => void };
+}
+
+/**
  * This interface supports SQL-like operations accessing and/or mutating the data in a
  * collection.  These operations are available only on collections which satisfy certain
  * structural constraints, such as those produced by `mapTo`.
  */
-export interface Table<R extends TJSON[]> {
-  getName(): string;
+export interface Table<R extends TJSON[]> extends TableReader {
   /**
    * Insert an entry (or entries) into the table
    * @param entries - The new data to insert
@@ -428,14 +479,6 @@ export interface Table<R extends TJSON[]> {
   updateWhere(where: JSONObject, updates: JSONObject): void;
 
   /**
-   * Select entries in the table
-   * @param where - the column values to filter entries
-   * @param columns - the columns to include in the output; include all by default
-   * @throws {Error} when an index constraints is broken
-   */
-  select(where: JSONObject, columns?: string[]): JSONObject[];
-
-  /**
    * Delete an entry from the table
    * @param entry - the entry to delete
    */
@@ -446,27 +489,6 @@ export interface Table<R extends TJSON[]> {
    * @param where - the column values to filter entries
    */
   deleteWhere(where: JSONObject): void;
-
-  /**
-   * Register a callback to be invoked on the `rows` of this table whenever data changes
-   * @param update - the callback to invoke when data changes
-   * @returns a callback `close` to terminate and clean up the watch
-   */
-  watch: (
-    update: (rows: JSONObject[]) => void,
-    feedback?: boolean,
-  ) => { close: () => void };
-  /**
-   * Register a callback to be invoked on the `added` and `removed` rows of this table
-   * whenever data changes
-   * @param init - a callback to invoke on table initialization and reset
-   * @param update - the callback to invoke on changes
-   */
-  watchChanges: (
-    init: (rows: JSONObject[]) => void,
-    update: (added: JSONObject[], removed: JSONObject[]) => void,
-    feedback?: boolean,
-  ) => { close: () => void };
 }
 
 /**

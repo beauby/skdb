@@ -5,32 +5,23 @@ import type {
   OutputMapper,
   Param,
   SKStore,
-  Table,
   TJSON,
   Database,
 } from "./skipruntime_api.js";
 
-export interface Writer<V extends TJSON> {
-  set(key: string, value: V): void;
+export interface Writer {
+  set(key: string, value: TJSON): void;
   delete(keys: string[]): void;
 }
 
 export type ServiceOutput = {
   outputs: Record<string, EagerCollection<TJSON, TJSON>>;
-  update: (
-    event: TJSON,
-    table: Record<string, Table<TJSON[]>>,
-    remote: Record<string, (event: TJSON) => Promise<void>>,
-  ) => Promise<void>;
+  observables?: Record<string, EagerCollection<TJSON, TJSON>>;
 };
 
 export type SimpleServiceOutput = {
   output: EagerCollection<string, TJSON>;
-  update: (
-    event: TJSON,
-    writers: Record<string, Writer<TJSON>>,
-    remote: Record<string, (event: TJSON) => Promise<void>>,
-  ) => Promise<void>;
+  observables?: Record<string, EagerCollection<TJSON, TJSON>>;
 };
 
 export type InputDefinition = {

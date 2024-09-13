@@ -11,13 +11,9 @@
     "incremental": true,
     "noEmit": false,
     "strict": true,
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "composite": true
   },
-  "exclude": [
-    "tests"
-  ],
-  "include": [
-    "src",
-    "tests/tests.ts"
-  ]
+  "exclude": ["tests"],
+  "include": ["src", "tests/tests.ts"]
 }

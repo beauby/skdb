@@ -1,48 +1,64 @@
-import { run } from "./utils.js";
+import { run, type Step, type Table, subscribe } from "./utils.js";
 
 function scenarios() {
   return [
     [
       {
-        type: "get",
-        command: "add",
-        payload: "v1",
+        type: "write",
+        payload: [{ collection: "input1", entries: [{ key: "v1", value: 2 }] }],
       },
       {
-        type: "post",
-        command: "set",
-        payload: [{ name: "input1", key: "v1", value: 2 }],
+        type: "write",
+        payload: [{ collection: "input2", entries: [{ key: "v1", value: 3 }] }],
       },
       {
-        type: "post",
-        command: "set",
-        payload: [{ name: "input2", key: "v1", value: 3 }],
+        type: "request",
+        payload: "/add/v1",
       },
       {
-        type: "post",
-        command: "delete",
-        payload: [{ name: "input1", keys: ["v1"] }],
+        type: "delete",
+        payload: [{ collection: "input1", keys: ["v1"] }],
       },
       {
-        type: "post",
-        command: "set",
+        type: "write",
         payload: [
-          { name: "input1", key: "v1", value: 2 },
-          { name: "input1", key: "v2", value: 6 },
+          {
+            collection: "input1",
+            entries: [
+              { key: "v1", value: 2 },
+              { key: "v2", value: 6 },
+            ],
+          },
         ],
       },
       {
-        type: "post",
-        command: "set",
-        payload: [{ name: "input2", key: "v2", value: 0 }],
+        type: "write",
+        payload: [{ collection: "input2", entries: [{ key: "v2", value: 0 }] }],
       },
       {
-        type: "post",
-        command: "set",
-        payload: [{ name: "input1", key: "v1", value: 8 }],
+        type: "write",
+        payload: [{ collection: "input1", entries: [{ key: "v1", value: 8 }] }],
       },
-    ],
+      {
+        type: "request",
+        payload: "/add/v1",
+      },
+    ] as Step[],
   ];
 }
 
-run(scenarios(), 8081);
+if (process?.argv?.length > 2 && process?.argv[2] == "true") {
+  await subscribe(
+    (rows: Table) => {
+      console.table(rows);
+    },
+    (added: Table, removed: Table) => {
+      console.log("Added");
+      console.table(added);
+      console.log("Removed");
+      console.table(removed);
+    },
+  );
+}
+
+run(scenarios());

@@ -1,13 +1,17 @@
 import type {
+  CollectionAccess,
   Database,
   EagerCollection,
+  JSONObject,
   NonEmptyIterator,
+  Opt,
   OutputMapper,
   Remote,
   Schema,
   SKStore,
   Table,
   TableCollection,
+  TableReader,
   TJSON,
 } from "./skipruntime_api.js";
 
@@ -36,7 +40,7 @@ class FromInput implements InputMapper<TJSON[], TJSON, TJSON> {
 class ToOutput implements OutputMapper<TJSON[], TJSON, TJSON> {
   mapElement(key: TJSON, it: NonEmptyIterator<TJSON>) {
     const v = it.first();
-    return Array([key, JSON.stringify(v), "", "read-write"]);
+    return Array([key, v, "root", "read-write"]);
   }
 }
 
@@ -72,11 +76,14 @@ const responseSchema = {
   ],
 };
 
-class WriterImpl<V extends TJSON> implements Writer<V> {
+class WriterImpl implements Writer {
   constructor(private table: Table<TJSON[]>) {}
 
-  set(key: string, value: V): void {
-    this.table.insert([[key, JSON.stringify(value), "", "read-write"]], true);
+  set(key: string, value: TJSON): void {
+    this.table.insert(
+      [[key, JSON.stringify(value), "root", "read-write"]],
+      true,
+    );
   }
 
   delete(keys: string[]): void {
@@ -84,14 +91,92 @@ class WriterImpl<V extends TJSON> implements Writer<V> {
   }
 }
 
+class TReaderImpl implements CollectionAccess<TJSON, TJSON> {
+  constructor(private table: TableReader) {}
+
+  getAll(): { key: TJSON; value: TJSON }[] {
+    const cols =
+      this.table.getName() == "__sk_responses"
+        ? ["id", "response"]
+        : ["key", "value"];
+    return this.table.select({}, cols) as {
+      key: TJSON;
+      value: TJSON;
+    }[];
+  }
+
+  getArray(key: string): TJSON[] {
+    const where: JSONObject = {};
+    const cols: string[] = [];
+    let vName: keyof JSONObject = "value";
+    if (this.table.getName() == "__sk_responses") {
+      vName = "";
+      where["id" as keyof JSONObject] = key;
+      cols.push("response");
+      vName = "response";
+    } else {
+      where["key"] = key;
+      cols.push("value");
+    }
+    const result = this.table.select(where, cols);
+    if (result.length > 0) {
+      const row = result[0];
+      return [row[vName]!];
+    }
+    return [];
+  }
+
+  getOne(key: string): TJSON {
+    const value = this.maybeGetOne(key);
+    if (!value) {
+      throw new Error(`'${key}' not found`);
+    }
+    return value;
+  }
+
+  maybeGetOne(key: string): Opt<TJSON> {
+    const where: JSONObject = {};
+    const cols: string[] = [];
+    let kName: keyof JSONObject = "key";
+    let vName: keyof JSONObject = "value";
+    if (this.table.getName() == "__sk_responses") {
+      where["id"] = key;
+      cols.push("id");
+      cols.push("response");
+      vName = "response";
+      kName = "id";
+    } else {
+      where["key"] = key;
+      cols.push("key");
+      cols.push("value");
+    }
+    const result = this.table.select(where, cols);
+    if (result.length > 0) {
+      const row = result[0];
+      return row[vName];
+    }
+    return null;
+  }
+}
+
 function toWriters(
   tables: Record<string, Table<TJSON[]>>,
-): Record<string, Writer<TJSON>> {
-  const writers: Record<string, Writer<TJSON>> = {};
+): Record<string, Writer> {
+  const writers: Record<string, Writer> = {};
   for (const key of Object.keys(tables)) {
     writers[key] = new WriterImpl(tables[key]);
   }
   return writers;
+}
+
+function toReaders(
+  tables: Record<string, TableReader>,
+): Record<string, CollectionAccess<TJSON, TJSON>> {
+  const readers: Record<string, CollectionAccess<TJSON, TJSON>> = {};
+  for (const key of Object.keys(tables)) {
+    readers[key] = new TReaderImpl(tables[key]);
+  }
+  return readers;
 }
 
 class SimpleToGenericSkipService implements GenericSkipService {
@@ -162,42 +247,22 @@ class SimpleToGenericSkipService implements GenericSkipService {
     const result = this.simple.reactiveCompute(store, requests, inputs);
     return {
       outputs: { __sk_responses: result.output },
-      update: (
-        event: TJSON,
-        tables: Record<string, Table<TJSON[]>>,
-        remoteWriters: Record<string, (event: TJSON) => Promise<void>>,
-      ) => result.update(event, toWriters(tables), remoteWriters),
+      observables: result.observables,
     };
   }
 }
 
-function isGenericSkipService(service: GenericSkipService | SimpleSkipService) {
-  if (!("localInputs" in service)) return false;
-  if (!("remoteInputs" in service)) return false;
-  if (!("outputs" in service)) return false;
-  if (typeof service.localInputs != "function") return false;
-  if (typeof service.remoteInputs != "function") return false;
-  if (typeof service.outputs != "function") return false;
-  return true;
-}
-
 export async function runService(
-  service: GenericSkipService | SimpleSkipService,
+  gService: GenericSkipService,
   createSKStore: typeof CreateSKStore,
   database?: Database,
 ): Promise<
   [
-    (
-      event: TJSON,
-      remote: Record<string, (event: TJSON) => Promise<void>>,
-    ) => Promise<void>,
     Record<string, Table<TJSON[]>>,
-    Record<string, Table<TJSON[]>>,
+    Record<string, TableReader>,
+    Record<string, CollectionAccess<TJSON, TJSON>>,
   ]
 > {
-  const gService: GenericSkipService = isGenericSkipService(service)
-    ? (service as GenericSkipService)
-    : new SimpleToGenericSkipService(service as SimpleSkipService);
   const localInputs = gService.localInputs();
   const remoteInputs = gService.remoteInputs();
   const outputs = gService.outputs();
@@ -228,14 +293,9 @@ export async function runService(
     }
     remotes[key] = { database: ri.database, tables: schemas };
   }
-  let update:
-    | ((
-        event: TJSON,
-        remote: Record<string, (event: TJSON) => Promise<void>>,
-      ) => Promise<void>)
-    | null = null;
   const iTables: Record<string, Table<TJSON[]>> = {};
-  const oTables: Record<string, Table<TJSON[]>> = {};
+  const oTables: Record<string, TableReader> = {};
+  const readers: Record<string, CollectionAccess<TJSON, TJSON>> = {};
   const initSKStore = (
     store: SKStore,
     tables: Record<string, TableCollection<TJSON[]>>,
@@ -278,7 +338,11 @@ export async function runService(
       // eslint-disable-next-line  @typescript-eslint/no-unsafe-argument
       ehandle.mapTo(tables[key], output.toTableRow, ...output.params);
     }
-    update = (event, remotes) => result.update(event, iTables, remotes);
+    if (result.observables) {
+      for (const [key, observable] of Object.entries(result.observables)) {
+        readers[key] = observable.toCollectionAccess();
+      }
+    }
   };
   await createSKStore(
     initSKStore,
@@ -291,5 +355,21 @@ export async function runService(
     remotes,
     gService.tokens,
   );
-  return [update!, iTables, oTables];
+  return [iTables, oTables, readers];
+}
+
+export async function runSimpleService(
+  service: SimpleSkipService,
+  createSKStore: typeof CreateSKStore,
+  database?: Database,
+): Promise<
+  [Record<string, Writer>, Record<string, CollectionAccess<TJSON, TJSON>>]
+> {
+  const gService = new SimpleToGenericSkipService(service as SimpleSkipService);
+  const [iTables, oTables, readers] = await runService(
+    gService,
+    createSKStore,
+    database,
+  );
+  return [toWriters(iTables), { ...toReaders(oTables), ...readers }];
 }
