@@ -1,0 +1,22 @@
+{
+  "name": "reactive-posts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "vite": "^5.4.5",
+    "react": "^18",
+    "react-dom": "^18",
+    "skdb-ts-thin": "file:../../../skdb-ts-thin"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "typescript": "^5"
+  }
+}
