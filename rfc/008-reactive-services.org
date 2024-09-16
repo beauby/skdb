@@ -1,0 +1,80 @@
+#+title: Architecture
+
+#+begin_src plantuml :file architecture.png
+  skinparam componentStyle rectangle
+  !theme superhero-outline
+  component "Back end" as s1 {
+          component "Reactive Services" as s1.srs #line.dotted {
+                  [Skip Reactive Service #1] as s1.srs.1
+                  [Skip Reactive Service #2] as s1.srs.2
+          }
+          [REST Service] as s1.rest
+          note top
+                  Vanilla REST service,
+                  implemented using any
+                  existing web framework
+                  (Flask, Ruby on Rails,
+                  node.js, etc.).
+          end note
+          s1.srs.1 <-- s1.srs.2 : mirror
+          s1.srs.1 <-> s1.rest : read/write value
+          s1.srs.2 <-> s1.rest : read/write value
+  }
+
+  cloud "Remote Reactive Services" as s2
+
+  s1.srs.1 <-r- s2 : mirror
+
+  component "Front end" #line.dotted {
+          [Skip Reactive Client] as srsclient
+          [REST Client] as restclient
+
+          s1.srs.1 ---> srsclient : WebSocket\nsubscribe("posts")
+          s1.srs.2 ---> srsclient : WebSocket\nsubscribe("comments")
+          s1.rest <---> restclient : HTTP\nGET /posts/123\nPOST /comments
+
+  }
+#+end_src
+
+Required APIs:
+- non-reactive read/write to local Skip Reactive Service (replaces the previous
+  update callback). This means *we no longer need to own the whole HTTP/REST
+  stack*.
+
+#+begin_src plantuml :file reactive_service.png
+  skinparam componentStyle rectangle
+  !theme superhero-outline
+  component "Skip Reactive Service" {
+          left to right direction
+          component io #line.dotted {
+                  component "Request Collection" as io.in
+                  note left
+                        Input for creating
+                        reactive GETs
+                  end note
+                  component "Response Collection" as io.out
+                  note left
+                        Source for
+                       reactive GETs
+                  end note
+          }
+          component compute #line.dotted {
+                  component "Reactive Collection #1" as srs.1
+                  component "Reactive Collection #2" as srs.2
+                  component "..." as srs.x
+                  component "Reactive Collection #n" as srs.n
+          }
+          note left of compute
+                  Reactive compute graph made
+                  of reactive collections.
+          end note
+
+          srs.1 -[hidden]l-> srs.2
+          srs.2 -[hidden]l-> srs.x
+          srs.x -[hidden]l-> srs.n
+
+          io.in -[hidden]l-> io.out
+          io.in --> compute
+          io.out <-- compute
+  }
+#+end_src
