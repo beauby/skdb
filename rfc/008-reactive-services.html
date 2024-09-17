@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2024-09-17 Tue 17:38 -->
+<!-- 2024-09-18 Wed 00:23 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Reactive Services &#x2013; Architecture</title>
@@ -200,21 +200,21 @@
 <h2>Table of Contents</h2>
 <div id="text-table-of-contents" role="doc-toc">
 <ul>
-<li><a href="#org7a958e9">1. Overview</a></li>
-<li><a href="#org758acce">2. Mirroring Reactive Resources</a></li>
-<li><a href="#org79a98f0">3. The Write Path</a></li>
-<li><a href="#orgee40a7c">4. Low Level API</a>
+<li><a href="#org03bdf58">1. Overview</a></li>
+<li><a href="#org235603c">2. Mirroring Reactive Resources</a></li>
+<li><a href="#org35c5b60">3. The Write Path</a></li>
+<li><a href="#orga582438">4. Low Level API</a>
 <ul>
-<li><a href="#org71e51a9">4.1. Reactive Resources</a></li>
-<li><a href="#org6963c5e">4.2. Reading</a></li>
-<li><a href="#orgc171323">4.3. Writing</a></li>
+<li><a href="#org92f5ac9">4.1. Reactive Resources</a></li>
+<li><a href="#orgfc1e6f3">4.2. Reading</a></li>
+<li><a href="#orge9bd4a8">4.3. Writing</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
-<div id="outline-container-org7a958e9" class="outline-2">
-<h2 id="org7a958e9"><span class="section-number-2">1.</span> Overview</h2>
+<div id="outline-container-org03bdf58" class="outline-2">
+<h2 id="org03bdf58"><span class="section-number-2">1.</span> Overview</h2>
 <div class="outline-text-2" id="text-1">
 <p>
 This RFC aims to define an architecture for <b>reactive services</b>, along
@@ -222,7 +222,7 @@ with their APIs.
 </p>
 
 
-<div id="orgfaab7b7" class="figure">
+<div id="org0104fa4" class="figure">
 <p><img src="architecture.png" alt="architecture.png" />
 </p>
 </div>
@@ -260,14 +260,14 @@ A Twitter <b>reactive service</b> may expose the following <b>reactive resources
 </ul>
 
 <p>
-A <b>reactive service</b> offers a <a href="#orgee40a7c">minimal API</a> to interact with <b>reactive
+A <b>reactive service</b> offers a <a href="#orga582438">minimal API</a> to interact with <b>reactive
 resources</b>. This API is intended to be used by other back end
 components, such as a regular web frameworks<sup><a id="fnr.1" class="footref" href="#fn.1" role="doc-backlink">1</a></sup>.
 </p>
 </div>
 </div>
-<div id="outline-container-org758acce" class="outline-2">
-<h2 id="org758acce"><span class="section-number-2">2.</span> Mirroring Reactive Resources</h2>
+<div id="outline-container-org235603c" class="outline-2">
+<h2 id="org235603c"><span class="section-number-2">2.</span> Mirroring Reactive Resources</h2>
 <div class="outline-text-2" id="text-2">
 <p>
 In practice, a <b>reactive resource</b> is implemented by a TypeScript
@@ -285,7 +285,7 @@ using any web framework), which orchestrates the instantiation of
 Example<sup><a id="fnr.2" class="footref" href="#fn.2" role="doc-backlink">2</a></sup>:
 </p>
 
-<div id="org61fdd78" class="figure">
+<div id="orgaf93fd4" class="figure">
 <p><img src="mirroring.png" alt="mirroring.png" />
 </p>
 </div>
@@ -311,15 +311,15 @@ subscribe to subsequent updates<sup><a id="fnr.3" class="footref" href="#fn.3" r
 </ul>
 
 <p>
-This means that an existing REST API can be kept as is, and made
+This means that an <b>existing REST API can be kept as is</b>, and made
 reactive without hindering non-reactive clients (which would simply
 ignore the <code>X-Reactive-Request-Id</code> HTTP response header), thus
 <b>permitting gradual introduction of reactivity in existing services</b>.
 </p>
 </div>
 </div>
-<div id="outline-container-org79a98f0" class="outline-2">
-<h2 id="org79a98f0"><span class="section-number-2">3.</span> The Write Path</h2>
+<div id="outline-container-org35c5b60" class="outline-2">
+<h2 id="org35c5b60"><span class="section-number-2">3.</span> The Write Path</h2>
 <div class="outline-text-2" id="text-3">
 <p>
 Some of the skip runtime reactive collections defined by the <b>reactive
@@ -329,8 +329,8 @@ write_all()</code> functions <sup><a id="fnr.4" class="footref" href="#fn.4" rol
 </p>
 </div>
 </div>
-<div id="outline-container-orgee40a7c" class="outline-2">
-<h2 id="orgee40a7c"><span class="section-number-2">4.</span> Low Level API</h2>
+<div id="outline-container-orga582438" class="outline-2">
+<h2 id="orga582438"><span class="section-number-2">4.</span> Low Level API</h2>
 <div class="outline-text-2" id="text-4">
 <p>
 <b>Reactive Services</b> expose the following low level primitives (in
@@ -338,8 +338,8 @@ practice through a local server-side HTTP API, except for <code>mirror()</code>
 which is handled through a WebSocket):
 </p>
 </div>
-<div id="outline-container-org71e51a9" class="outline-3">
-<h3 id="org71e51a9"><span class="section-number-3">4.1.</span> Reactive Resources</h3>
+<div id="outline-container-org92f5ac9" class="outline-3">
+<h3 id="org92f5ac9"><span class="section-number-3">4.1.</span> Reactive Resources</h3>
 <div class="outline-text-3" id="text-4-1">
 <ul class="org-ul">
 <li><p>
@@ -365,8 +365,8 @@ Mirrors the given collection, created using <code>create_reactive_request</code>
 </ul>
 </div>
 </div>
-<div id="outline-container-org6963c5e" class="outline-3">
-<h3 id="org6963c5e"><span class="section-number-3">4.2.</span> Reading</h3>
+<div id="outline-container-orgfc1e6f3" class="outline-3">
+<h3 id="orgfc1e6f3"><span class="section-number-3">4.2.</span> Reading</h3>
 <div class="outline-text-3" id="text-4-2">
 <ul class="org-ul">
 <li><p>
@@ -396,8 +396,8 @@ with the current tick.
 </ul>
 </div>
 </div>
-<div id="outline-container-orgc171323" class="outline-3">
-<h3 id="orgc171323"><span class="section-number-3">4.3.</span> Writing</h3>
+<div id="outline-container-orge9bd4a8" class="outline-3">
+<h3 id="orge9bd4a8"><span class="section-number-3">4.3.</span> Writing</h3>
 <div class="outline-text-3" id="text-4-3">
 <ul class="org-ul">
 <li><p>
@@ -455,7 +455,7 @@ happen after an actual write to a regular database.
 </div>
 </div></div>
 <div id="postamble" class="status">
-<p class="date">Created: 2024-09-17 Tue 17:38</p>
+<p class="date">Created: 2024-09-18 Wed 00:23</p>
 <p class="validation"><a href="https://validator.w3.org/check?uri=referer">Validate</a></p>
 </div>
 </body>
