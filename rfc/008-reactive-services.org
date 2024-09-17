@@ -7,45 +7,44 @@ with their APIs.
 
 #+begin_src plantuml :file architecture.png
   skinparam componentStyle rectangle
-  skinparam linetype polyline
+  skinparam linetype ortho
   !theme superhero-outline
+
   component "Back end" as s1 {
-          together {
-                  database "PostgreSQL" as db
-                  component "Reactive Service" as s1.srs {
-                          together {
-                                  [Reactive Resource #1] as s1.srs.1
-                                  [Reactive Resource #2] as s1.srs.2
-                          }
-                  }
+          database "PostgreSQL" as db
+          component "Reactive Service" as srs {
+                  [Reactive Resource #1] as srs.1
+                  [Reactive Resource #2] as srs.2
           }
+          component "REST Service" as rest
+          note left of rest
+                  Vanilla REST service,
+                  implemented using any
+                  existing web framework
+                  (Flask, Ruby on Rails,
+                  node.js, etc.).
+          end note
 
-          together {
-                  [REST Service] as s1.rest
-                  note left
-                          Vanilla REST service,
-                          implemented using any
-                          existing web framework
-                          (Flask, Ruby on Rails,
-                          node.js, etc.).
-                  end note
-                  [Reactive Replication Service] as s1.replication
-                  note right
-                          This corresponds to the
-                          current skdb server, in
-                          charge of mirroring
-                          through WebSockets.
-                  end note
-          }
+          [Reactive Replication Service] as replication
+          note right of replication
+                  This corresponds to the
+                  current skdb server, in
+                  charge of mirroring
+                  through WebSockets.
+          end note
 
-          s1.rest <--> "read/write" db
-          s1.rest -[hidden]r- s1.replication
-          s1.srs --> "tail" s1.replication
-          s1.srs <--> s1.rest : read/write
+          db -[hidden]right- srs
 
-          cloud "Remote Reactive Services" as s2
-          s1.srs <-r- s2 : WebSocket\nmirror()
+          rest -[hidden]right- replication
+
+          db <---> rest
+          srs <---> rest
+          srs ---> replication
+
+          cloud "Remote Reactive Services" as remote_srs
+          srs <-[norank]- remote_srs
   }
+
 
 
   component "Front end" #line.dotted {
@@ -54,14 +53,15 @@ with their APIs.
                   Vanilla HTTP client,
                   such as JS's fetch()
           end note
-          [Skip Reactive Client\n\n.mirror(...)] as srsclient
+          [Skip Reactive Client\n\n.mirror(...)\n\n] as srsclient
           note right
                   Thin client that deals
                   only with mirroring.
           end note
 
-          s1.replication ---> srsclient : WebSocket
-          s1.rest <---> restclient : HTTP
+          restclient -[hidden]right-> srsclient
+          replication ---> srsclient : WebSocket
+          rest <---> restclient : HTTP
 
   }
 #+end_src
@@ -146,7 +146,7 @@ with initial data, relying on mirroring for the entire sync.
 [fn:3] The exact API of mirror regarding init data is still TBD.
 
 
-This means that an existing REST API can be kept as is, and made
+This means that an *existing REST API can be kept as is*, and made
 reactive without hindering non-reactive clients (which would simply
 ignore the ~X-Reactive-Request-Id~ HTTP response header), thus
 *permitting gradual introduction of reactivity in existing services*.
