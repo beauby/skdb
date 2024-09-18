@@ -39,6 +39,7 @@ function Feed() {
   async function upvotePost(postId) {
     try {
       await fetch(`${BASE_URL}/posts/${postId}/upvotes`, { method: "POST" });
+      getPosts().then(setPosts);
     } catch (error) {
       console.error(error)
     }
