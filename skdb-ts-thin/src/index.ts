@@ -1933,6 +1933,20 @@ class SKDB {
   }
 }
 
+export function generateKeyPair() {
+  return crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: {
+      type: 'spki',
+    },
+    privateKeyEncoding: {
+      type: 'pkcs8',
+    },
+  });
+}
+
+// console.log('PublicKey:', generateKeyPair().publicKey);
+
 export default {
   connect,
 };
