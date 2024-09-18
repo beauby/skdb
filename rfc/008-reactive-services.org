@@ -178,7 +178,7 @@ which is handled through a WebSocket):
 ** Reactive Resources
 
 - ~create_reactive_request(resource_name: string, params:
-  Record<string, Object>, session: string): string~
+  Record<string, Object>, public_key: string): string~
 
   Returns a reactive request id (which is a dynamically generated
   collection name) that can be used with ~mirror()~ to get reactive
@@ -227,6 +227,29 @@ A downstream consumer of a *reactive service* will usually be using a
 thin client in their host language. That client deals only with
 mirroring *reactive resources* (cf. [[*Mirroring Reactive Resources][Mirroring Reactive Resources]]), and
 subscribing to updates.
+
+* Authentication
+
+A pair of public/private keys is generated client-side in order to
+authenticate a session.
+
+The public key is sent to the replication server in the `Auth`
+message, along with a signature of the `Auth` nonced message using the
+private key, in order to authenticate the mirroring session. The
+private key never leaves the client[fn:5].
+
+[fn:5] This differs from the previous design where a shared private
+key was generated server-side and communicated to the client through a
+side-channel.
+
+The replication server accepts any public key (as long as it matches
+the signature). By default, no data is mirrorable, except for the
+response tables generated for requests using that public key.
+
+The ~create_reactive_request()~ function of the [[*L][Low Level API]] takes a
+public key as its last parameter. The generated response table is
+readable only by authenticating using the same public/private key
+pair.
 
 * Full Example: HackerNews
 
