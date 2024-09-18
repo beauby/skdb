@@ -30,7 +30,7 @@ def close_connection(exception):
         db.close()
 
 def format_post(post):
-    return {"id": post[0], "title": post[1], "url": post[2], "body": post[3], "upvotes": post[4]}
+    return {"id": post[0], "title": post[1], "url": post[2], "body": post[3], "author": post[4], "upvotes": post[5]}
 
         
 @app.get("/")
@@ -38,6 +38,7 @@ def posts_index():
     db = get_db()
     cur = db.execute(
         """SELECT id, title, url, body,
+        (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,
         (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes
         FROM posts ORDER BY upvotes DESC"""
     )
@@ -67,6 +68,7 @@ def get_post(post_id):
     db = get_db()
 
     cur = db.execute(f"""SELECT id, title, url, body,
+    (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,
     (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes
     FROM posts WHERE id={post_id}""")
     res = format_post(cur.fetchone())

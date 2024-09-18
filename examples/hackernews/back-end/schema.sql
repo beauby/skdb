@@ -1,9 +1,11 @@
 CREATE TABLE IF NOT EXISTS users (
        "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-       "name" TEXT, "email" TEXT
+       "name" TEXT,
+       "email" TEXT
 );
 CREATE TABLE IF NOT EXISTS posts (
        "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+       "author_id" INTEGER,
        "title" TEXT,
        "url" TEXT,
        "body" TEXT
