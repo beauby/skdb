@@ -187,15 +187,14 @@ Stream ids are
 - payload
   - 4: mux protocol version (8)
   - 5: reserved (24) - must be zeroed
-  - 8: access key (27 * 8 = 216) - ASCII encoded 27 char string or 0-terminated
-  - 35: nonce (64)
-  - 43: signature (256)
-  - 75: uuid (36 * 8 = 288) - ASCII encoded UUID v4 string
-  - 111: reserved (7) must be zeroed
+  - 8: access key (65 * 8 = 520) - ECDSA public key
+  - 73 (35): nonce (8 * 8 = 64)
+  - 81 (43): signature (32 * 8 = 256)
+  - 113 (111): reserved (7) must be zeroed
   - iso length 0 for 24, 1 for 27 (1)
-  - 112: iso date (24 * 8 = 192 or 27 * 8 = 216 depending on iso length flag)
-  - 136/139: client_version_length (8)
-  - 137/140: client_version (client_version_length * 8) - ASCII encoded string identifying this client
+  - 114 (112): iso date (24 * 8 = 192 or 27 * 8 = 216 depending on iso length flag)
+  - 138/141 (136/139): client_version_length (8)
+  - 139/142 (137/140): client_version (client_version_length * 8) - ASCII encoded string identifying this client
 
 *** (Conn) Ping
 

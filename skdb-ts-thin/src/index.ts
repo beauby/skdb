@@ -1206,26 +1206,19 @@ export class MuxedSocket {
       creds.accessKey,
       uint8View.subarray(8),
     );
-    if (!encodeAccessKey.written || encodeAccessKey.written > 27) {
+    if (!encodeAccessKey.written || encodeAccessKey.written > 65) {
       throw new Error("Unable to encode access key");
     }
-    uint8View.set(new Uint8Array(sig), 43);
-    const encodeDeviceId = enc.encodeInto(
-      creds.deviceUuid,
-      uint8View.subarray(75),
-    );
-    if (!encodeDeviceId.written || encodeDeviceId.written != 36) {
-      throw new Error("Unable to encode device id");
-    }
-    let pos = 112;
+    uint8View.set(new Uint8Array(sig), 81);
+    let pos = 114;
     const encodeIsoDate = enc.encodeInto(now, uint8View.subarray(pos));
     switch (encodeIsoDate.written) {
       case 24:
-        pos = 136;
+        pos = 138;
         break;
       case 27:
-        dataView.setUint8(111, 0x1);
-        pos = 139;
+        dataView.setUint8(113, 0x1);
+        pos = 141;
         break;
       default:
         throw new Error("Unexpected ISO date length");
@@ -1902,11 +1895,17 @@ class SKDB {
 
 export async function generateKeyPair() {
   return await crypto.subtle.generateKey(
+    // {
+    //   name: 'RSA-PSS', 
+    //   modulusLength: 2048,
+    //   publicExponent: new Uint8Array([1, 0, 1]),
+    //   hash: "SHA-256",
+    // },
+    // FIXME: Using ECDSA for now, for lower key/signature footprint.
+    // Revisit the decision (vs RSA-PSS) before release.
     {
-      name: 'RSA-PSS', 
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: "SHA-256",
+      name: 'ECDSA', 
+      namedCurve: 'P-256',
     },
     true,
     ["sign", "verify"],
