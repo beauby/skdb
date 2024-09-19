@@ -118,8 +118,8 @@ using any web framework), which orchestrates the instantiation of
 Example[fn:2]:
 #+BEGIN_SRC plantuml :file mirroring.png
   !theme superhero-outline
-  Client -> "REST service" : GET /users/123/likes
-  "REST service" -> "Reactive service" : create_reactive_request(\n  "likes_per_author",\n  { author_id: 123 }\n)
+  Client -> "REST service" : GET /users/123/likes\nX-Reactive-Auth: {pubkey}
+  "REST service" -> "Reactive service" : create_reactive_request(\n  "likes_per_author",\n  { author_id: 123 },\n  pubkey\n)
   "REST service" <-- "Reactive service" : reactive_request_id
   "REST service" -> "Reactive service" : diff(reactive_request_id, 0)
   "REST service" <-- "Reactive service" : (current_values, init_tick)
@@ -186,7 +186,7 @@ which is handled through a WebSocket):
   current values.
 
   Mirroring the result is limited to the session identified by the
-  ~session~ parameter.
+  ~public_key~ parameter.
 
 - [WebSocket] ~mirror(collection_name: string, init: (rows:
   Array<Object>): void, update: (added: Array<Object>, removed:
@@ -231,24 +231,28 @@ subscribing to updates.
 * Authentication
 
 A pair of public/private keys is generated client-side in order to
-authenticate a session.
-
-The public key is sent to the replication server in the `Auth`
-message, along with a signature of the `Auth` nonced message using the
-private key, in order to authenticate the mirroring session. The
-private key never leaves the client[fn:5].
+authenticate a session. The private key never leaves the client[fn:5].
 
 [fn:5] This differs from the previous design where a shared private
 key was generated server-side and communicated to the client through a
 side-channel.
 
+
+The public key is sent to the replication server in the ~Auth~
+message, along with a signature of the ~Auth~ message, in order to
+authenticate the mirroring session.
+
+The ~Auth~ message contains a (client generated) nonce to prevent
+replay attacks, and a timestamp to make tracking previously used
+nonces more practical.
+
 The replication server accepts any public key (as long as it matches
 the signature). By default, no data is mirrorable, except for the
 response tables generated for requests using that public key.
 
-The ~create_reactive_request()~ function of the [[*L][Low Level API]] takes a
-public key as its last parameter. The generated response table is
-readable only by authenticating using the same public/private key
+The ~create_reactive_request()~ function of the [[*Low Level API][Low Level API]] takes a
+public key as its last parameter. The generated response table can be
+mirrored only by authenticating using the same public/private key
 pair.
 
 * Full Example: HackerNews

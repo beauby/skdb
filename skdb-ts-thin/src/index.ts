@@ -1810,16 +1810,6 @@ class SKDB {
     );
   }
 
-  // async write(payload: JSON) {
-  //  return await fetch(this.endpoint, {
-  //     method: "POST",
-  //     body: JSON.stringify(payload),
-  //     headers: {
-  //       "Content-type": "application/json; charset=UTF-8"
-  //     },
-  //   })
-  // }
-
   isConnectionHealthy() {
     return this.connection.isSocketConsideredHealthy();
   }
@@ -1905,47 +1895,23 @@ class SKDB {
     });
   }
 
-  async createDatabase(dbName: string): Promise<ProtoResponseCreds> {
-    return this.makeRequest({
-      type: "createDatabase",
-      name: dbName,
-    }).then((result) => {
-      if (result === null || result.type !== "credentials") {
-        throw new Error("Unexpected response.");
-      }
-      return result;
-    });
-  }
-
-  async createUser(): Promise<ProtoResponseCreds> {
-    return this.makeRequest({
-      type: "createUser",
-    }).then((result) => {
-      if (result === null || result.type !== "credentials") {
-        throw new Error("Unexpected response.");
-      }
-      return result;
-    });
-  }
-
   onReboot(fn: () => void) {
     this.onRebootFn = fn;
   }
 }
 
-export function generateKeyPair() {
-  return crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: {
-      type: 'spki',
+export async function generateKeyPair() {
+  return await crypto.subtle.generateKey(
+    {
+      name: 'RSA-PSS', 
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
     },
-    privateKeyEncoding: {
-      type: 'pkcs8',
-    },
-  });
+    true,
+    ["sign", "verify"],
+  );
 }
-
-// console.log('PublicKey:', generateKeyPair().publicKey);
 
 export default {
   connect,
