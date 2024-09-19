@@ -305,22 +305,6 @@ class Skdb(val name: String, private val dbPath: String) {
     t.start()
   }
 
-  fun privateKeyAsStored(user: String): ByteArray {
-    val key =
-        sql(
-                "SELECT privateKey FROM skdb_users WHERE userID = @user;",
-                mapOf("user" to user),
-                OutputFormat.RAW)
-            .decodeOrThrow()
-            .trim()
-
-    if (key.isEmpty()) {
-      throw IllegalArgumentException("User ${user} could not be found.")
-    }
-
-    return Base64.getDecoder().decode(key)
-  }
-
   fun createDb(encryptedRootPrivateKey: String): Skdb {
     if (File(dbPath).exists()) {
       return openSkdb(name)!!

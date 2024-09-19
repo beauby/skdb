@@ -1,6 +1,5 @@
 package io.skiplabs.skdb.server
 
-import io.skiplabs.skdb.Credentials
 import io.skiplabs.skdb.DB_ROOT_USER
 import io.skiplabs.skdb.ENV
 import io.skiplabs.skdb.MuxedSocket
@@ -54,21 +53,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.atomic.AtomicReference
 
-fun Credentials.toProtoCredentials(): ProtoCredentials {
-  return ProtoCredentials(accessKey, ByteBuffer.wrap(privateKey))
-}
-
-fun genPrivateKey(): ByteArray {
-  val csrng = SecureRandom()
-
-  // generate a 256 bit random key
-  val plaintextPrivateKey = ByteArray(32)
-  csrng.nextBytes(plaintextPrivateKey)
-
-  return plaintextPrivateKey
-}
-
-fun genCredentials(accessKey: String): Credentials {
+fun genCredential(accessKey: String):  {
   val csrng = SecureRandom()
 
   // generate a 256 bit random key for the root user
@@ -80,7 +65,7 @@ fun genCredentials(accessKey: String): Credentials {
   return creds
 }
 
-fun createDb(dbName: String): Credentials {
+fun createDb(dbName: String):  {
   val creds = genCredentials(DB_ROOT_USER)
   createSkdb(dbName, creds.b64encryptedKey())
   return creds
@@ -134,7 +119,7 @@ class ProcessPipe(val proc: Process) : StreamHandler {
 
 class RequestHandler(
     val skdb: Skdb,
-    val accessKey: String,
+    val pubkey: ByteArray,
     val replicationId: String,
 ) : StreamHandler {
 
@@ -178,14 +163,7 @@ class RequestHandler(
         stream.error(2003u, "DB creation not supported or necessary in the dev server.")
       }
       is ProtoCreateUser -> {
-        val privateKey = genPrivateKey()
-        val b64privateKey = Base64.getEncoder().encodeToString(privateKey)
-        val userID = skdb.createUser(b64privateKey)
-        val creds = Credentials(userID, privateKey, privateKey)
-        val payload = creds.toProtoCredentials()
-        stream.send(encodeProtoMsg(payload))
-        creds.clear()
-        stream.close()
+        stream.error(2003u, "user creation not supported or necessary in the dev server.")
       }
       is ProtoRequestTail -> {
         if (!skdb.canMirror(request.table, request.expectedSchema)) {
@@ -318,13 +296,6 @@ fun connectionHandler(
                           },
                           onClose = { socket -> socket.closeSocket() },
                           onError = { _, _, _ -> },
-                          getDecryptedKey = { authMsg ->
-                            accessKey = authMsg.accessKey
-                            replicationId =
-                                skdb?.replicationId(authMsg.deviceUuid)?.decodeOrThrow()?.trim()
-                            val encryptedPrivateKey = skdb?.privateKeyAsStored(authMsg.accessKey)
-                            encryptedPrivateKey!!
-                          },
                           log = { _, _, _ -> })
 
                   if (skdb == null) {
@@ -336,119 +307,12 @@ fun connectionHandler(
               })))
 }
 
-fun usersHandler(): HttpHandler {
-  return BlockingHandler(
-      object : HttpHandler {
-        override fun handleRequest(exchange: HttpServerExchange) {
-          val pathParams = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters()
-          val db = pathParams["database"]
-
-          if (db == null) {
-            throw RuntimeException("database not provided")
-          }
-
-          if (exchange.requestMethod == Methods.GET) {
-            var skdb = openSkdb(db)
-            if (skdb == null) {
-              createDb(db)
-              skdb = openSkdb(db)
-            }
-            exchange.responseHeaders.put(Headers.CONTENT_TYPE, "application/json")
-            exchange.responseHeaders.put(HttpString("Access-Control-Allow-Origin"), "*")
-            exchange.responseSender.send(
-                skdb!!
-                    .sql(
-                        "SELECT userID as accessKey, privateKey FROM skdb_users", OutputFormat.JSON)
-                    .decodeOrThrow())
-          } else {
-            exchange.statusCode = StatusCodes.METHOD_NOT_ALLOWED
-          }
-        }
-      })
-}
-
-fun schemaHandler(): HttpHandler {
-  val schemas = ConcurrentHashMap<String, String>()
-  return BlockingHandler(
-      object : HttpHandler {
-        override fun handleRequest(exchange: HttpServerExchange) {
-
-          exchange.responseHeaders.put(HttpString("Access-Control-Allow-Origin"), "*")
-          exchange.responseHeaders.put(HttpString("Access-Control-Allow-Methods"), "PUT")
-
-          val pathParams = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters()
-          val db = pathParams["database"]
-
-          if (db == null) {
-            throw RuntimeException("database not provided")
-          }
-
-          if (exchange.requestMethod == Methods.PUT) {
-            var old = openSkdb(db)
-            val tmp_name = UUID.randomUUID().toString()
-            createDb(tmp_name)
-            var new = openSkdb(tmp_name)
-
-            val schema = exchange.inputStream.bufferedReader().use { it.readText() }
-
-            val prevSchema = schemas.put(db, schema)
-
-            // this check is more than just optimisation. it ensures
-            // that clients with the same schema end up connected to
-            // the same db file and thus replicate.
-            if (prevSchema == schema) {
-              exchange.statusCode = StatusCodes.OK
-              return
-            }
-
-            exchange.statusCode = StatusCodes.CREATED
-
-            try {
-              new!!.sql(schema, OutputFormat.RAW).decodeOrThrow()
-            } catch (ex: Exception) {
-              exchange.statusCode = StatusCodes.BAD_REQUEST
-              exchange.responseSender.send(
-                  "Could not create a database with the new schema:\n${schema}")
-              return
-            }
-
-            if (old != null) {
-              try {
-                val inserts = old.migrate(schema).decodeOrThrow()
-                val output = new.sql(inserts, OutputFormat.RAW)
-                if (!output.exitSuccessfully()) {
-                  exchange.statusCode = StatusCodes.BAD_REQUEST
-                  exchange.responseSender.send(
-                      "Failed to migrate data to the new schema:\n${output.decode()}")
-                  return
-                }
-              } catch (ex: Exception) {
-                exchange.statusCode = StatusCodes.BAD_REQUEST
-                exchange.responseSender.send("Failed to migrate data to the new schema.")
-                return
-              }
-            }
-
-            val dbPath = ENV.resolveDbPath(db)
-            val tmpPath = ENV.resolveDbPath(tmp_name)
-            // val archivePath = ENV.resolveDbPath(tmp_name)
-            File(tmpPath).renameTo(File(dbPath))
-            return
-          }
-        }
-      })
-}
-
-fun createHttpServer(
+un createHttpServer(
     connectionHandler: HttpHandler,
-    usersHandler: HttpHandler,
-    schemaHandler: HttpHandler
 ): Undertow {
   var pathHandler =
       PathTemplateHandler()
           .add("/dbs/{database}/connection", connectionHandler)
-          .add("/dbs/{database}/users", usersHandler)
-          .add("/dbs/{database}/schema", schemaHandler)
   return Undertow.builder().addHttpListener(ENV.port, "0.0.0.0").setHandler(pathHandler).build()
 }
 
@@ -465,15 +329,9 @@ fun main(args: Array<String>) {
   val taskPool = Executors.newSingleThreadScheduledExecutor()
   val workerPool = Executors.newSingleThreadExecutor()
   val connHandler = connectionHandler(workerPool, taskPool)
-  val usersHandler = usersHandler()
-  val schemaHandler = schemaHandler()
-  val server = createHttpServer(connHandler, usersHandler, schemaHandler)
+  val server = createHttpServer(connHandler)
   server.start()
 
   println("SKDB dev server has started")
-  println("------------------------------------------------------")
-  println("The following dev resources are available:")
-  println("GET /dbs/{database}/users")
-  println("PUT /dbs/{database}/schema")
   println("------------------------------------------------------")
 }

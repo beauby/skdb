@@ -106,14 +106,8 @@ fun createHttpServer(port: Int): Undertow {
                           taskPool = Executors.newSingleThreadScheduledExecutor(),
                           onStream = ::setupStream,
                           onClose = {},
-                          onError = { _, _, _ -> },
-                          getDecryptedKey = {
-                            when (it.accessKey) {
-                              "ABCDEFGHIJKLMNOPQRST" -> "test".toByteArray(StandardCharsets.UTF_8)
-                              "root" -> "very_secure".toByteArray(StandardCharsets.UTF_8)
-                              else -> throw RuntimeException("illegal!")
-                            }
-                          })
+                          onError = { _, _, _ -> }
+                      )
                   return socket
                 }
               }))

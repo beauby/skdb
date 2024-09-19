@@ -30,8 +30,16 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
+import java.security.AlgorithmParameters
+import java.security.KeyFactory
+import java.security.PublicKey
+import java.security.Signature
+import java.security.spec.ECPoint
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECParameterSpec
+import java.security.spec.ECPublicKeySpec
+
+import java.math.BigInteger
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -40,36 +48,20 @@ import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import org.xnio.ChannelListener
 
-data class Credentials(
-    val accessKey: String,
-    val privateKey: ByteArray,
-    val encryptedPrivateKey: ByteArray,
-    val deviceUuid: String? = null,
-) {
-  fun b64privateKey(): String = Base64.getEncoder().encodeToString(privateKey)
+// FIXME: Surely there is a less manual way.
+fun deserializePubKey(pubkey: ByteArray): PublicKey {
+    val kf = KeyFactory.getInstance("EC");
+    val x = Arrays.copyOfRange(pubkey, 1, 33);
+    val y = Arrays.copyOfRange(pubkey, 33, 65);
+    val w = ECPoint(BigInteger(1, x), BigInteger(1, y));
 
-  fun b64encryptedKey(): String = Base64.getEncoder().encodeToString(encryptedPrivateKey)
+    val params = AlgorithmParameters.getInstance("EC");
+    params.init(ECGenParameterSpec("NIST P-256"));
+    val curve = params.getParameterSpec(ECParameterSpec::class.java);
+    
+    val pubkey = kf.generatePublic(ECPublicKeySpec(w, curve));
 
-  fun clear(): Unit {
-    privateKey.fill(0)
-    encryptedPrivateKey.fill(0)
-  }
-
-  override fun toString(): String {
-    return "Credentials(accessKey=${accessKey}, privateKey=**redacted**, deviceId=${deviceUuid})"
-  }
-
-  fun sign(nonce: ByteArray, date: String): ByteArray {
-    val nonce64 = Base64.getEncoder().encodeToString(nonce)
-    val content: String = "auth" + accessKey + date + nonce64
-    val contentBytes = content.toByteArray(Charsets.UTF_8)
-
-    val algo = "HmacSHA256"
-    val mac = Mac.getInstance(algo)
-
-    mac.init(SecretKeySpec(privateKey, algo))
-    return mac.doFinal(contentBytes)
-  }
+    return pubkey;
 }
 
 interface MuxedSocketFactory {
@@ -208,10 +200,9 @@ sealed class MuxMsg
 
 data class MuxAuthMsg(
     val version: UInt,
-    val accessKey: String,
+    val pubkey: ByteArray,
     val nonce: ByteArray,
     val signature: ByteArray,
-    val deviceUuid: String,
     val date: String,
     val clientVersion: String,
 ) : MuxMsg()
@@ -300,9 +291,6 @@ class MuxedSocket(
     val onStream: onStreamFn,
     val onClose: onSocketCloseFn,
     val onError: onSocketErrorFn,
-    val getDecryptedKey: (MuxAuthMsg) -> ByteArray = { _ ->
-      throw RuntimeException("Acting as a client initated socket")
-    },
     val isClient: Boolean = false,
     val log: MuxedSocketLogger = { _, _, _ -> },
 ) {
@@ -483,44 +471,6 @@ class MuxedSocket(
       observers.add(callback)
     } finally {
       mutex.writeLock().unlock()
-    }
-  }
-
-  fun sendAuth(creds: Credentials) {
-    when (getState()) {
-      State.CLOSING,
-      State.CLOSED -> {}
-      State.CLOSE_WAIT,
-      State.AUTH -> {
-        throw RuntimeException("Trying to send an auth message on an authenticated socket.")
-      }
-      State.IDLE -> {
-        val csrng = SecureRandom()
-        val nonce = ByteArray(8)
-        csrng.nextBytes(nonce)
-        // javascript iso date format is _based_ on iso8601 but not fully compliant. yep.
-        val date =
-            ZonedDateTime.now(ZoneOffset.UTC)
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
-        val authMsg =
-            MuxAuthMsg(
-                version = 0u,
-                accessKey = creds.accessKey,
-                nonce = nonce,
-                signature = creds.sign(nonce, date),
-                deviceUuid = creds.deviceUuid ?: UUID.randomUUID().toString(),
-                date = date,
-                clientVersion = "kt-0.0.3", // TODO: this should be passed from above
-            )
-        mutex.writeLock().lock()
-        try {
-          authenticatedWith = AuthWith(authMsg, Instant.now())
-          setState(State.AUTH)
-        } finally {
-          mutex.writeLock().unlock()
-        }
-        sendData(encodeAuthMsg(authMsg))
-      }
     }
   }
 
@@ -779,72 +729,7 @@ class MuxedSocket(
   }
 
   private fun encodeAuthMsg(msg: MuxAuthMsg): ByteBuffer {
-    val encoder = StandardCharsets.US_ASCII.newEncoder()
-    val buf = ByteBuffer.allocate(140 + msg.clientVersion.length)
-    buf.putInt(0x0) // type 0 and stream 0
-    buf.putInt(0x0) // mux protocol version
-    // access key
-    if (msg.accessKey.length > 27) {
-      throw RuntimeException("accessKey ${msg.accessKey} too long")
-    }
-    var res = encoder.encode(CharBuffer.wrap(msg.accessKey), buf, true)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    res = encoder.flush(buf)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    encoder.reset()
-    buf.position(35) // rely on buf being zeroed out and set position to support short keys
-    // nonce
-    buf.put(msg.nonce)
-    // signature
-    buf.put(msg.signature)
-    // uuid
-    res = encoder.encode(CharBuffer.wrap(msg.deviceUuid), buf, true)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    res = encoder.flush(buf)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    encoder.reset()
-    // date
-    when (msg.date.length) {
-      24 -> {
-        buf.put(0x0)
-      }
-      27 -> {
-        buf.put(0x1)
-      }
-      else -> throw RuntimeException("Date ${msg.date} cannot be encoded")
-    }
-    res = encoder.encode(CharBuffer.wrap(msg.date), buf, true)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    res = encoder.flush(buf)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    encoder.reset()
-    // client version
-    if (msg.clientVersion.length > 255) {
-      throw RuntimeException("Cannot encode client version ${msg.clientVersion}, too long")
-    }
-    buf.put(msg.clientVersion.length.toByte())
-    res = encoder.encode(CharBuffer.wrap(msg.clientVersion), buf, true)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    res = encoder.flush(buf)
-    if (!res.isUnderflow()) {
-      res.throwException()
-    }
-    encoder.reset()
-    return buf.flip()
+      throw UnsupportedOperationException() 
   }
 
   private fun encodeGoawayMsg(lastStream: UInt, errorCode: UInt, msg: String): ByteBuffer {
@@ -932,22 +817,12 @@ class MuxedSocket(
           throw RuntimeException("Auth should happen on stream zero")
         }
         val version = (msg.getInt() ushr 24).toUInt()
-        val accessKeyBytes = ByteArray(27)
-        msg.get(accessKeyBytes)
-        val zeroIdx = accessKeyBytes.indexOf(0)
-        val accessKey =
-            String(
-                accessKeyBytes,
-                0,
-                if (zeroIdx == -1) accessKeyBytes.size else zeroIdx,
-                StandardCharsets.US_ASCII)
+        val pubkey = ByteArray(65)
+        msg.get(pubkey)
         val nonce = ByteArray(8)
         msg.get(nonce)
         val signature = ByteArray(32)
         msg.get(signature)
-        val deviceUuidBytes = ByteArray(36)
-        msg.get(deviceUuidBytes)
-        val deviceUuid = String(deviceUuidBytes, StandardCharsets.US_ASCII)
         val dateLength = msg.get().toUInt() and 0x1u
         val dateBytes = ByteArray(if (dateLength == 0u) 24 else 27)
         msg.get(dateBytes)
@@ -956,7 +831,7 @@ class MuxedSocket(
         val clientVersionBytes = ByteArray(clientVersionLength.toInt())
         msg.get(clientVersionBytes)
         val clientVersion = String(clientVersionBytes, StandardCharsets.US_ASCII)
-        MuxAuthMsg(version, accessKey, nonce, signature, deviceUuid, date, clientVersion)
+        MuxAuthMsg(version, pubkey, nonce, signature, date, clientVersion)
       }
       // goaway
       1u -> {
@@ -1021,25 +896,28 @@ class MuxedSocket(
 
       // do not allow auths that were not recent. the margin is for clock skew.
       if (delta.abs().compareTo(Duration.ofMinutes(10)) > 0) {
-        log("auth_failure", auth.accessKey, "too_old")
+          log("auth_failure", "", "too_old")
         return false
       }
 
       // TODO: check nonce against a cache to prevent replay attacks
 
-      val creds = Credentials(auth.accessKey, getDecryptedKey(auth), ByteArray(0), auth.deviceUuid)
-      val matches = Arrays.equals(creds.sign(auth.nonce, auth.date), auth.signature)
-
-      // at least try to keep the private key in memory for as little time as possible
-      creds.clear()
+      val pubkey = deserializePubKey(auth.pubkey)
+      val nonce64 = Base64.getEncoder().encodeToString(auth.nonce)
+      val content: String = "auth" + auth.pubkey + auth.date + nonce64
+      val contentBytes = content.toByteArray(Charsets.UTF_8)
+      val ecdsaVerify = Signature.getInstance("SHA256withECDSA");
+      ecdsaVerify.initVerify(pubkey);
+      ecdsaVerify.update(contentBytes);
+      val matches = ecdsaVerify.verify(auth.signature);
 
       if (!matches) {
-        log("auth_failure", auth.accessKey, "bad_sig")
+          log("auth_failure", "", "bad_sig")
       }
 
       return matches
     } catch (ex: Exception) {
-      log("auth_failure", auth.accessKey, ex.message)
+        log("auth_failure", "", ex.message)
       return false
     }
   }
@@ -1211,27 +1089,4 @@ class Stream(
       observer(s)
     }
   }
-}
-
-suspend fun connectMux(
-    endpoint: URI,
-    taskPool: ScheduledExecutorService,
-    onStream: onStreamFn,
-    onClose: onSocketCloseFn,
-    onError: onSocketErrorFn,
-    creds: Credentials,
-): MuxedSocket {
-  val client = MuxedSocketClient(endpoint)
-  val socket =
-      MuxedSocket(
-          channel = WebSocketClientAdapter(client),
-          taskPool,
-          onStream,
-          onClose,
-          onError,
-          isClient = true,
-      )
-  client.open(socket)
-  socket.sendAuth(creds)
-  return socket
 }
