@@ -66,4 +66,6 @@ class PostsResource implements Resource {
   }
 }
 
+// Spawn a local HTTP server to support reading/writing and creating
+// reactive requests.
 runWithRESTServer(new HackerNewsService());

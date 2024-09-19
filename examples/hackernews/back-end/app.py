@@ -3,6 +3,7 @@ import sqlite3
 
 DATABASE = 'database.db'
 
+
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
@@ -30,9 +31,15 @@ def close_connection(exception):
         db.close()
 
 def format_post(post):
-    return {"id": post[0], "title": post[1], "url": post[2], "body": post[3], "author": post[4], "upvotes": post[5]}
+    return {
+        "id": post[0],
+        "title": post[1],
+        "url": post[2],
+        "body": post[3],
+        "author": post[4],
+        "upvotes": post[5]
+    }
 
-        
 @app.get("/")
 def posts_index():
     db = get_db()
@@ -56,7 +63,7 @@ def create_post():
     title = params['title']
     url = params['url']
     body = params['body']
-    
+
     db = get_db()
     db.execute(f"INSERT INTO posts(title, url, body) VALUES('{title}', '{url}', '{body}')")
     db.commit()

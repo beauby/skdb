@@ -197,13 +197,13 @@ which is handled through a WebSocket):
 
 ** Reading
 
-- ~read(collection_name: string, key: TKey): Array<Object>~
-
-  Reads the value for a given key at the current tick.
-
-- ~read_all(collection_name: string): Map<TKey, Array<Object>>~
+- ~read(collection_name: string): Map<TKey, Array<Object>>~
 
   Reads the whole collection at the current tick.
+
+- ~read_one(collection_name: string, key: TKey): Array<Object>~
+
+  Reads the value for a given key at the current tick.
 
 - ~diff(collection_name: string, prev_tick: int): (Map<TKey,
   Array<Object>>, int)~
@@ -213,13 +213,14 @@ which is handled through a WebSocket):
 
 ** Writing
 
-- ~write(collection_name: string, key: TKey, value: Array<Object>)~
-
-  Sets the value for a given key.
-- ~write_all(collection_name: string, value: Map<TKey,
+- ~write_many(collection_name: string, value: Map<TKey,
   Array<Object>>)~
 
-  Overwrites the whole collection.
+  Sets the values for the given keys.
+
+- ~write_one(collection_name: string, key: TKey, value: Array<Object>)~
+
+  Sets the value for a given key.
 
 * Client
 
@@ -257,10 +258,130 @@ pair.
 
 * Full Example: HackerNews
 
+** Non-reactive initial project
+
+SQL Schema:
 #+include: "../examples/hackernews/back-end/schema.sql" src sql -n
-
+Back end:
 #+include: "../examples/hackernews/back-end/app.py" src python -n
-
+Front end:
 #+include: "../examples/hackernews/front-end/src/App.tsx" src tsx -n
 
+** Making it reactive
+
+Reactive Service:
 #+include: "../examples/hackernews/back-end/reactive_hackernews.ts" src ts -n
+
+Modified back end:
+#+include: "../examples/hackernews/back-end/app_reactive.py" src python -n
+
+Diff:
+#+begin_src shell :results raw :var diff=(org-babel-tangle) :wrap src diff
+exec 2>&1
+diff -u ../examples/hackernews/back-end/app{,_reactive}.py
+#+end_src
+
+#+begin_src diff
+--- ../examples/hackernews/back-end/app.py	2024-09-19 15:44:44.769194526 +0200
++++ ../examples/hackernews/back-end/app_reactive.py	2024-09-19 15:44:29.800371988 +0200
+@@ -1,5 +1,8 @@
+ from flask import Flask, g, json, request
+ import sqlite3
++import requests
++
++REACTIVE_SERVICE_URL = 'http://localhost:3587/v1'
+ 
+ DATABASE = 'database.db'
+ 
+@@ -42,18 +45,35 @@
+ 
+ @app.get("/")
+ def posts_index():
+-    db = get_db()
+-    cur = db.execute(
+-        """SELECT id, title, url, body,
+-        (SELECT name FROM users WHERE id=posts.author_id LIMIT 1) as author,
+-        (SELECT COUNT(id) FROM upvotes WHERE post_id=posts.id) as upvotes
+-        FROM posts ORDER BY upvotes DESC"""
+-    )
+-    res = [
+-        format_post(post)
+-        for post in cur.fetchall()
+-    ]
+-    cur.close()
++    public_key = request.headers['X-Reactive-Auth']
++
++    if public_key:
++        # Create reactive request for the reactive resource `posts`,
++        # limited to 10 results.
++        reactive_request_id = requests.post(
++            REACTIVE_SERVICE_URL + f'/reactive/posts',
++            params = {
++                'limit': 10
++            },
++            headers = {
++                'X-Reactive-Auth': public_key,
++            }
++        ).content
++
++        # Get the initial data, which will be returned to the client
++        # along with a reactive request token for subscribing to
++        # further updates.
++        diff = requests.get(REACTIVE_SERVICE_URL +
++                            f'/collections/{reactive_request_id}/diff/0').json()
++
++        tick = diff['tick']
++        return diff['data'], { 'X-Reactive-Request-Id': f'{reactive_request_id}:{tick}' }
++
++    else:
++        # If the client didn't set the `X-Reactive-Auth` header, they
++        # are not interested in reactive updates for this query, so we
++        # just respond with the current values.
++        posts = requests.get(f'/collections/{reactive_request_id}').json()
+ 
+     return json.jsonify(res)
+ 
+@@ -65,9 +85,17 @@
+     body = params['body']
+ 
+     db = get_db()
+-    db.execute(f"INSERT INTO posts(title, url, body) VALUES('{title}', '{url}', '{body}')")
++    cur = db.cursor()
++    cur.execute(f"INSERT INTO posts(title, url, body) VALUES('{title}', '{url}', '{body}')")
++    post_id = cur.lastrowid
+     db.commit()
+ 
++    # Write into the reactive input collection.
++    requests.post(
++        REACTIVE_SERVICE_URL + f'/posts',
++        params = { **params, 'id': post_id }
++    )
++
+     return "ok", 200
+ 
+ @app.get("/posts/<int:post_id>")
+@@ -85,8 +113,22 @@
+ 
+ @app.post("/posts/<int:post_id>/upvotes")
+ def upvote_post(post_id):
++    user_id = get_current_user().id
++
+     db = get_db()
+-    db.execute(f"INSERT INTO upvotes(post_id) VALUES({post_id})")
++    cur = db.cursor()
++    cur.execute(f"INSERT INTO upvotes(post_id, user_id) VALUES({post_id}, {user_id})")
++    upvote_id = cur.lastrowid
+     db.commit()
+ 
++    # Write into the reactive input collection.
++    requests.post(
++        REACTIVE_SERVICE_URL + f'/upvotes',
++        params = {
++            'id': upvote_id,
++            'post_id': post_id,
++            'user_id': user_id,
++        }
++    )
++
+     return "ok", 200
+#+end_src
