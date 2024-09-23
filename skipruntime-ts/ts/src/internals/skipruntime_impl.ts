@@ -324,7 +324,7 @@ export class SKStoreFactoryImpl implements SKStoreFactory {
     return "SKStore";
   }
 
-  async runSKStore(
+  async runSKStore<K extends TJSON, V extends TJSON>(
     init: (
       skstore: SKStore,
       collections: Record<string, EagerCollection<TJSON, TJSON>>,
@@ -333,7 +333,7 @@ export class SKStoreFactoryImpl implements SKStoreFactory {
     remotes: Record<string, EntryPoint> = {},
     tokens: Record<string, number> = {},
     initLocals?: () => Promise<Record<string, [TJSON, TJSON][]>>,
-  ): Promise<SkipBuilder> {
+  ): Promise<SkipBuilder<K, V>> {
     const context = this.context();
     const skstore = new SKStoreImpl(context);
     const initValues = initLocals ? await initLocals() : {};
@@ -441,11 +441,11 @@ export class EagerCollectionReader<K extends TJSON, V extends TJSON>
     return this.context.getAll<K, V>(this.eagerHdl);
   }
 
-  getDiff(from: bigint): Watermaked<K, V> {
+  getDiff(from: string): Watermaked<K, V> {
     return this.context.getDiff(this.eagerHdl, from);
   }
 
-  subscribe(from: bigint, notify: Notifier<K, V>, changes: boolean): bigint {
+  subscribe(from: string, notify: Notifier<K, V>, changes: boolean): bigint {
     return this.context.subscribe(this.eagerHdl, from, notify, changes);
   }
 }
@@ -492,7 +492,7 @@ export class SkipRuntimeImpl implements SkipRuntime {
       params,
       reactiveAuth,
     );
-    const result = reader.getDiff(0n);
+    const result = reader.getDiff("0");
     return {
       reactive: { collection: name, watermark: result.watermark },
       values: result.values,
@@ -509,7 +509,7 @@ export class SkipRuntimeImpl implements SkipRuntime {
       params,
       reactiveAuth,
     );
-    return { collection: name, watermark: 0n };
+    return { collection: name, watermark: "0" };
   }
 
   async getOne<V extends TJSON>(
@@ -568,7 +568,7 @@ export class SkipReplicationImpl<K extends TJSON, V extends TJSON>
 {
   constructor(private context: Context) {}
 
-  subscribe(collectionName: string, from: bigint, notify: Notifier<K, V>) {
+  subscribe(collectionName: string, from: string, notify: Notifier<K, V>) {
     return this.context.subscribe(collectionName, from, notify, true);
   }
 
