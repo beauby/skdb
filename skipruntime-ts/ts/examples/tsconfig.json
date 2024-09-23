@@ -20,5 +20,6 @@
     "incremental": true,
     // Language and Environment
     "target": "ES2021"
-  }
+  },
+  "exclude": ["database.ts", "database-client.ts", "dist"]
 }
