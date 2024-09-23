@@ -5,27 +5,24 @@ import type {
   EagerCollection,
   NonEmptyIterator,
   SimpleSkipService,
-  Resource,
+  //  Resource,
 } from "skip-runtime";
 
-import { runWithRESTServer } from "skip-runtime";
+// import { runWithRESTServer } from "skip-runtime";
 
-interface Post {
-  id: number;
+type Post = {
   author_id: number;
   title: string;
   url: string;
   body: string;
 };
 
-interface User {
-  id: number;
+type User = {
   name: string;
   email: string;
 };
 
-interface Upvote {
-  id: number;
+type Upvote = {
   post_id: number;
   user_id: number;
 };
@@ -36,12 +33,12 @@ class HackerNewsService implements SimpleSkipService {
 
   reactiveCompute(
     store: SKStore,
-    inputCollections: Record<string, EagerCollection<string, TJSON>>,
+    inputCollections: Record<string, EagerCollection<TJSON, TJSON>>,
   ): Record<string, EagerCollection<TJSON, TJSON>> {
-    const upvotes = inputCollections.upvotes.map(UpvotesMapper);
-    const postsWithUpvotes = inputCollections.posts.map(
+    const upvotes = (inputCollections.upvotes as EagerCollection<string, Upvote>).map(UpvotesMapper);
+    const postsWithUpvotes = (inputCollections.posts as EagerCollection<string, Post>).map(
       PostsMapper,
-      inputCollections.users,
+      inputCollections.users as EagerCollection<string, User>,
       upvotes,
     );
 
@@ -51,51 +48,56 @@ class HackerNewsService implements SimpleSkipService {
   }
 }
 
-class UpvotesMapper implements Mapper<string, Upvote, number, string> {
+class UpvotesMapper {
   mapElement(
     key: string,
-    it: NonEmptyIterator<{ post_id: number }>,
+    it: NonEmptyIterator<Upvote>,
   ): Iterable<[number, string]> {
     const value = it.first().post_id;
-    return new Array([value, key]);
+    return [[value, key]];
   }
 }
 
-class PostsMapper implements Mapper<string, TJSON, TJSON, TJSON> {
+class PostsMapper {
   constructor(
-    private users: EagerCollection<string, TJSON>,
-    private upvotes: EagerCollection<string, TJSON>,
+    private users: EagerCollection<string, User>,
+    private upvotes: EagerCollection<number, string>,
   ) {}
 
   mapElement(
     key: string,
-    it: NonEmptyIterator<TJSON>,
-  ): Iterable<[[number, string], TJSON]> {
+    it: NonEmptyIterator<Post>,
+  ): Iterable<[[number, string], Post & { upvotes: number, author: User }]> {
     const post = it.first();
-    const upvotes = this.upvotes.getArray(key).length;
-    const author = this.users.getOne(post.author_id);
-    return new Array([[-upvotes, key], { ...post, upvotes, author }]);
+    const upvotes = this.upvotes.getArray(Number(key)).length;
+    const author = this.users.getOne(post.author_id.toString());
+    return [[[-upvotes, key], { ...post, upvotes, author }]];
   }
 }
 
-class PostsCleanupKeyMapper implements Mapper<TJSON, TJSON, string, TJSON> {
+class PostsCleanupKeyMapper {
   mapElement(
     key: [number, string],
     it: NonEmptyIterator<TJSON>,
   ): Iterable<[string, TJSON]> {
     const post = it.first();
-    return new Array([key[1], post]);
+    return [[key[1], post]];
   }
 }
 
-class PostsResource implements Resource {
+const foo = () => {
+  return "bar";
+}
+
+class PostsResource { // implements Resource {
   constructor(private limit: number) {}
 
   reactiveCompute(
     store: SKStore,
     collections: Record<string, EagerCollection<TJSON, TJSON>>,
   ): EagerCollection<string, TJSON> {
-    return collections.postWithUpvotes
+    foo();
+    return (collections.postWithUpvotes as EagerCollection<[number, string], Post & { upvotes: number, author: User }>)
       .take(this.limit)
       .map(PostsCleanupKeyMapper);
   }
@@ -103,4 +105,4 @@ class PostsResource implements Resource {
 
 // Spawn a local HTTP server to support reading/writing and creating
 // reactive requests.
-runWithRESTServer(new HackerNewsService());
+// runWithRESTServer(new HackerNewsService());
