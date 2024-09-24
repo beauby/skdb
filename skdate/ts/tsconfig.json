@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "outDir": "../dist",
+    "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "#std/*": ["../../../prelude/ts/src/*"],
-      "#skdate/*": ["./*"]
+      "#std/*": ["../../prelude/ts/src/*"],
+      "#skdate/*": ["./src/*"]
     },
     "strictNullChecks": true,
     "module": "node16",
