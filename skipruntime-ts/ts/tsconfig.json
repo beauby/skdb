@@ -35,8 +35,5 @@
     // Language and Environment
     "target": "ES2021"
   },
-  "exclude": [
-    "dist/",
-    "examples/"
-  ]
+  "exclude": ["dist/", "tests/", "examples/"]
 }

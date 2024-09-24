@@ -19,30 +19,27 @@ prelude:
 
 .PHONY: check-src
 check-src:
-	echo "make: Entering directory '${SCRIPT_DIR}/ts/src'"
-	cd ts/src && npm install && tsc && npm run lint
-	echo "make: Leaving directory '${SCRIPT_DIR}/ts/src'"
+	echo "make: Entering directory '${SCRIPT_DIR}/ts'"
+	cd ts/ && npm install && tsc && npm run lint
+	echo "make: Leaving directory '${SCRIPT_DIR}/ts'"
 
 .PHONY: check-examples
-check-examples: ../build/sknpm
+check-examples:
 	cd ts/examples && npm install
-	../build/sknpm b -r --nowasm --out-dir ts/examples/node_modules/skip-runtime
 	echo "make: Entering directory '${SCRIPT_DIR}/ts/examples'"
 	cd ts/examples && tsc && npm run lint
 	echo "make: Leaving directory '${SCRIPT_DIR}/ts/examples'"
 
 .PHONY: check-tests
 check-tests:
-	cd ts/tests && npm install
-	cd ts/tests && tsc
+	cd ts/tests && npm install && tsc && npm run lint
 
-.PHONY: check-all
-check-all: check-src check-examples check check-tests
+check-all: check-src check-tests check-examples
 
 .PHONY: build
 build: prelude skjson replication
 	cd ts && npm i && tsc
-	skargo build -r --target wasm32-unknown-unknown --lib --out-dir=./ts/dist/src/
+	skargo build -r --target wasm32-unknown-unknown --lib --out-dir=./ts/dist/
 
 bunrun-%: build
 	cd ts/examples && bun install && bun run $*.ts
@@ -55,7 +52,7 @@ check-%:
 	tsc --project ts/examples/tsconfig.json
 
 noderun-%: build
-	cd ts/examples && npm install
+	cd ts/examples && tsc
 	tsc --project ts/examples/tsconfig.json
 	cd ts/examples && node dist/$*.js
 
@@ -64,9 +61,11 @@ nodeclient-%:
 
 .PHONY: clean
 clean:
+	rm -rf ./ts/dist ./ts/playwright-report ./ts/test-results
 	cd .. && make clean
 
 .PHONY: test
 test: build
-	cd ts && npx playwright install
-	cd ts && npx playwright test -c tests/playwright.config.ts --reporter=line
+	cd ts/tests && npm i && tsc
+	cd ts/tests && npx playwright install
+	cd ts/tests && npx playwright test --reporter=line

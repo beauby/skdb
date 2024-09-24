@@ -30,6 +30,7 @@ export type {
   Resource,
   SkipRuntime,
   Entry,
+  ReactiveResponse,
 };
 
 export type {
@@ -46,6 +47,7 @@ export type {
   AsyncLazyCollection,
   EntryPoint,
   ExternalCall,
+  SkipReplication,
 } from "./skipruntime_api.js";
 
 export { ValueMapper } from "./skipruntime_api.js";
@@ -56,7 +58,12 @@ import { init as posixInit } from "std/posix.js";
 import { init as skjsonInit } from "skjson";
 import { init as skruntimeInit } from "./internals/skipruntime_module.js";
 
-const modules: ModuleInit[] = [runtimeInit, posixInit, skjsonInit, skruntimeInit];
+const modules: ModuleInit[] = [
+  runtimeInit,
+  posixInit,
+  skjsonInit,
+  skruntimeInit,
+];
 
 async function wasmUrl(): Promise<URL> {
   //@ts-expect-error  ImportMeta is incomplete
@@ -144,36 +151,33 @@ function toHttp(entrypoint: EntryPoint) {
   return `http://${entrypoint.host}:${entrypoint.port}`;
 }
 
-export async function fetchJSON(
+export async function fetchJSON<V>(
   url: string,
   method: "POST" | "GET" | "PUT" | "PATCH" | "HEAD" | "DELETE" = "GET",
   headers: Record<string, string>,
   data?: TJSON,
-) {
-  try {
-    const body = data ? JSON.stringify(data) : undefined;
-    const response = await fetch(url, {
-      method,
-      body,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...headers,
-      },
-      signal: AbortSignal.timeout(1000),
-    });
-    const responseJSON = method != "HEAD" ? await response.json() : null;
-    if (!response.ok) {
-      throw new Error(JSON.stringify(responseJSON));
-    }
-    return [responseJSON, response.headers];
-  } catch (e: any) {
-    throw e;
+): Promise<[V, Headers]> {
+  const body = data ? JSON.stringify(data) : undefined;
+  const response = await fetch(url, {
+    method,
+    body,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...headers,
+    },
+    signal: AbortSignal.timeout(1000),
+  });
+  const responseJSON = method != "HEAD" ? await response.json() : null;
+  if (!response.ok) {
+    throw new Error(JSON.stringify(responseJSON));
   }
+  return [responseJSON, response.headers];
 }
 
 export class SkipRESTRuntime implements SkipRuntime {
   private entrypoint: string;
+
   constructor(
     entrypoint: EntryPoint = {
       host: "localhost",
@@ -182,19 +186,28 @@ export class SkipRESTRuntime implements SkipRuntime {
   ) {
     this.entrypoint = toHttp(entrypoint);
   }
+
   async getAll<K extends TJSON, V extends TJSON>(
     resource: string,
     params: Record<string, string>,
-    reactiveAuth?: Uint8Array,
+    reactiveAuth?: Uint8Array | string,
   ): Promise<{ values: Entry<K, V>[]; reactive?: ReactiveResponse }> {
     const qParams = new URLSearchParams(params).toString();
     let header = {};
     if (reactiveAuth) {
-      header = {
-        "X-Reactive-Auth": Buffer.from(reactiveAuth.buffer).toString("base64"),
-      };
+      if (typeof reactiveAuth == "string") {
+        header = {
+          "X-Reactive-Auth": reactiveAuth,
+        };
+      } else {
+        header = {
+          "X-Reactive-Auth": Buffer.from(reactiveAuth.buffer).toString(
+            "base64",
+          ),
+        };
+      }
     }
-    const [values, headers] = await fetchJSON(
+    const [values, headers] = await fetchJSON<Entry<K, V>[]>(
       `${this.entrypoint}/v1/${resource}?${qParams}`,
       "GET",
       header,
@@ -205,14 +218,19 @@ export class SkipRESTRuntime implements SkipRuntime {
       : undefined;
     return reactive ? { values, reactive } : { values };
   }
+
   async head(
     resource: string,
     params: Record<string, string>,
-    reactiveAuth: Uint8Array,
+    reactiveAuth: Uint8Array | string,
   ): Promise<ReactiveResponse> {
     const qParams = new URLSearchParams(params).toString();
     let header = {};
-    if (reactiveAuth) {
+    if (typeof reactiveAuth == "string") {
+      header = {
+        "X-Reactive-Auth": reactiveAuth,
+      };
+    } else {
       header = {
         "X-Reactive-Auth": Buffer.from(reactiveAuth.buffer).toString("base64"),
       };
@@ -222,23 +240,25 @@ export class SkipRESTRuntime implements SkipRuntime {
       "HEAD",
       header,
     );
-    const reactiveResponse = headers.get("x-reactive-response");
-    return JSON.parse(reactiveResponse);
+    const reactiveResponse = headers.get("x-reactive-response")!;
+    return JSON.parse(reactiveResponse) as ReactiveResponse;
   }
+
   async getOne<V extends TJSON>(
     resource: string,
     params: Record<string, string>,
     key: string,
   ): Promise<V[]> {
     const qParams = new URLSearchParams(params).toString();
-    let header = {};
-    const [data, _headers] = await fetchJSON(
+    const header = {};
+    const [data, _headers] = await fetchJSON<V[]>(
       `${this.entrypoint}/v1/${resource}/${key}?${qParams}`,
       "GET",
       header,
     );
     return data;
   }
+
   async put<V extends TJSON>(
     collection: string,
     key: string,
@@ -251,12 +271,14 @@ export class SkipRESTRuntime implements SkipRuntime {
       value,
     );
   }
+
   async patch<K extends TJSON, V extends TJSON>(
     collection: string,
     values: Entry<K, V>[],
   ): Promise<void> {
     await fetchJSON(`${this.entrypoint}/v1/${collection}`, "PATCH", {}, values);
   }
+
   async delete(collection: string, key: string): Promise<void> {
     await fetchJSON(`${this.entrypoint}/v1/${collection}/${key}`, "DELETE", {});
   }

@@ -460,10 +460,6 @@ export class EagerCollectionReader<K extends TJSON, V extends TJSON>
   extends EagerReader<K, V>
   implements CollectionAccess<K, V>
 {
-  constructor(context: Context, eagerHdl: string) {
-    super(context, eagerHdl);
-  }
-
   getAll(): Entry<K, V>[] {
     return this.context.getAll<K, V>(this.eagerHdl);
   }
@@ -506,7 +502,7 @@ export class SkipRuntimeImpl implements SkipRuntime {
     private writables: Record<string, CollectionWriter<TJSON, TJSON>>,
   ) {}
 
-  async getAll<K extends TJSON, V extends TJSON>(
+  getAll<K extends TJSON, V extends TJSON>(
     resource: string,
     params: JSONObject,
     reactiveAuth?: Uint8Array,
@@ -520,13 +516,13 @@ export class SkipRuntimeImpl implements SkipRuntime {
       reactiveAuth,
     );
     const result = reader.getDiff("0");
-    return {
+    return Promise.resolve({
       reactive: { collection: name, watermark: result.watermark },
       values: result.values,
-    };
+    });
   }
 
-  async head(
+  head(
     resource: string,
     params: JSONObject,
     reactiveAuth: Uint8Array,
@@ -536,10 +532,10 @@ export class SkipRuntimeImpl implements SkipRuntime {
       params,
       reactiveAuth,
     );
-    return { collection: name, watermark: "0" };
+    return Promise.resolve({ collection: name, watermark: "0" });
   }
 
-  async getOne<V extends TJSON>(
+  getOne<V extends TJSON>(
     resource: string,
     params: JSONObject,
     key: string,
@@ -549,10 +545,10 @@ export class SkipRuntimeImpl implements SkipRuntime {
       params,
       new Uint8Array([]),
     );
-    return reader.getArray(key);
+    return Promise.resolve(reader.getArray(key));
   }
 
-  async put<V extends TJSON>(
+  put<V extends TJSON>(
     collectionName: string,
     key: string,
     value: V[],
@@ -564,9 +560,10 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.write(key, value);
+    return Promise.resolve();
   }
 
-  async patch<K extends TJSON, V extends TJSON>(
+  patch<K extends TJSON, V extends TJSON>(
     collectionName: string,
     values: Entry<K, V>[],
   ): Promise<void> {
@@ -577,9 +574,10 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.writeAll(values);
+    return Promise.resolve();
   }
 
-  async delete(collectionName: string, key: string): Promise<void> {
+  delete(collectionName: string, key: string): Promise<void> {
     const collection = this.writables[collectionName];
     if (!collection) {
       throw new UnknownCollectionError(
@@ -587,6 +585,7 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.delete([key]);
+    return Promise.resolve();
   }
 }
 
