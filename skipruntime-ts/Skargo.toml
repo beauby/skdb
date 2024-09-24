@@ -9,7 +9,5 @@ skjson = { path = "../skjson" }
 [dev-dependencies]
 sktest = { path = "../sktest" }
 
-[[bin]]
-name = "skip-runtime"
-main = "undefined"
-
+[lib]
+type = ["cdylib"]

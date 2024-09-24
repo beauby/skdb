@@ -26,7 +26,7 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": true,
-    "outDir": "../dist/src",
+    "outDir": "./dist",
     "sourceMap": true,
     // Interop Constraints
     "verbatimModuleSyntax": true,
@@ -34,5 +34,9 @@
     "incremental": true,
     // Language and Environment
     "target": "ES2021"
-  }
+  },
+  "exclude": [
+    "dist/",
+    "examples/"
+  ]
 }
