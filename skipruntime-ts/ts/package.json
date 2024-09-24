@@ -1,10 +1,19 @@
 {
   "type": "module",
+  "main": "./dist/src/skip-runtime.js",
+  "types": "./dist/src/skip-runtime.d.ts",
+  "exports": {
+    ".": {
+      "default": "./dist/src/skip-runtime.js",
+      "types": "./dist/src/skip-runtime.d.ts"
+    }
+  },
   "scripts": {
     "lint": "eslint ."
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@playwright/test": "^1.36.2",
     "@stylistic/eslint-plugin-js": "^2.6.4",
     "@types/express": "^4.17.21",
     "@types/node": "^22.6.0",
@@ -16,6 +25,9 @@
   },
   "dependencies": {
     "express": "^4.21.0",
-    "skipruntime-replication-client": "file:../../../replication"
+    "skipruntime-replication-client": "file:../../replication",
+    "skjson": "file:../../skjson/ts",
+    "std": "file:../../prelude/ts",
+    "ws": "^8.18.0"
   }
 }

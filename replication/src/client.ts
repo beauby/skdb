@@ -138,7 +138,7 @@ export class Client {
   private socket: ResilientWebSocket;
   private subscriptions = new Map<string, Subscription>();
   private closed: boolean = false;
-  private permanentFailureReason: string | null = null;
+  private permanentFailureReason?: string;
   private healthChecks: Array<(isOk: boolean) => void> = [];
 
   private constructor(creds: Creds, socket: ResilientWebSocket) {

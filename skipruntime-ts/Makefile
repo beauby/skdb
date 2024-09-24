@@ -1,17 +1,21 @@
-
 SHELL := /bin/bash
 
 SKARGO_PROFILE?=release
 
 SCRIPT_DIR=$(shell dirname $(shell realpath $(firstword $(MAKEFILE_LIST))))
 
-../build/sknpm:
-	cd .. && make build/sknpm
-
 
 .PHONY: replication
 replication:
 	cd ../replication && npm i && tsc
+
+.PHONY: skjson
+skjson:
+	cd ../skjson/ts && npm i && tsc
+
+.PHONY: prelude
+prelude:
+	cd ../prelude/ts && npm i && tsc
 
 .PHONY: check-src
 check-src:
@@ -27,30 +31,23 @@ check-tests:
 .PHONY: check-all
 check-all: check-src check check-tests
 
-build: ../build/sknpm
-	cd ts/examples && bun install
-	../build/sknpm b -r --out-dir ts/examples/node_modules/skip-runtime
+.PHONY: build
+build: prelude skjson replication
+	cd ts && npm i && tsc
+	skargo build -r --target wasm32-unknown-unknown --lib --out-dir=./ts/dist/src/
 
-bunrun-%: ../build/sknpm
-	cd ts/examples && bun install
-	../build/sknpm b -r --out-dir ts/examples/node_modules/skip-runtime
-	cd ts/examples && bun run $*.ts
+bunrun-%: build
+	cd ts/examples && bun install && bun run $*.ts
 
 bunclient-%:
-	cd ts/examples && bun run $*-client.ts
+	cd ts/examples && bun install && bun run $*-client.ts
 
-check: ../build/sknpm
-	../build/sknpm check
-	../build/sknpm check --test
-
-check-%: ../build/sknpm
+check-%:
 	cd ts/examples && npm install
-	../build/sknpm b -r --nowasm --out-dir ts/examples/node_modules/skip-runtime
 	tsc --project ts/examples/tsconfig.json
 
-noderun-%: ../build/sknpm replication
+noderun-%: build
 	cd ts/examples && npm install
-	../build/sknpm b -r --out-dir ts/examples/node_modules/skip-runtime
 	tsc --project ts/examples/tsconfig.json
 	cd ts/examples && node dist/$*.js
 

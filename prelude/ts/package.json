@@ -1,0 +1,30 @@
+{
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./internal.js": {
+      "default": "./dist/sk_internal_types.js",
+      "types": "./dist/sk_internal_types.d.ts"
+    },
+    "./runtime.js": {
+      "default": "./dist/sk_runtime.js",
+      "types": "./dist/sk_runtime.d.ts"
+    },
+    "./posix.js": {
+      "default": "./dist/sk_posix.js",
+      "types": "./dist/sk_posix.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "devDependencies": {
+    "@types/node": "^22.6.0",
+    "@types/ws": "^8.5.12"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
