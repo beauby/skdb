@@ -4,11 +4,11 @@ import type {
   Mapper,
   EagerCollection,
   NonEmptyIterator,
-  SimpleSkipService,
-  //  Resource,
+  SkipService,
+  Resource,
 } from "skip-runtime";
 
-// import { runWithRESTServer } from "skip-runtime";
+import { runService } from "skip-runtime";
 
 type Post = {
   author_id: number;
@@ -27,24 +27,21 @@ type Upvote = {
   user_id: number;
 };
 
-class HackerNewsService implements SimpleSkipService {
-  private inputTables = ["posts", "users", "upvotes"];
-  private resources = [PostsResource];
+class HackerNewsService implements SkipService {
+  inputCollections = ["posts", "users", "upvotes"];
+  resources = { posts: PostsResource };
 
   reactiveCompute(
-    store: SKStore,
-    inputCollections: Record<string, EagerCollection<TJSON, TJSON>>,
+    _store: SKStore,
+    inputCollections: {
+      posts: EagerCollection<number, Post>,
+      users: EagerCollection<number, User>,
+      upvotes: EagerCollection<number, Upvote>,
+    },
   ): Record<string, EagerCollection<TJSON, TJSON>> {
-    const upvotes = (
-      inputCollections.upvotes as EagerCollection<string, Upvote>
-    ).map(UpvotesMapper);
-    const postsWithUpvotes = (
-      inputCollections.posts as EagerCollection<string, Post>
-    ).map(
-      PostsMapper,
-      inputCollections.users as EagerCollection<string, User>,
-      upvotes,
-    );
+    const upvotes = inputCollections.upvotes.map(UpvotesMapper);
+    const postsWithUpvotes = inputCollections.posts 
+      .map(PostsMapper, inputCollections.users, upvotes);
 
     return {
       postsWithUpvotes,
@@ -54,9 +51,9 @@ class HackerNewsService implements SimpleSkipService {
 
 class UpvotesMapper {
   mapElement(
-    key: string,
+    key: number,
     it: NonEmptyIterator<Upvote>,
-  ): Iterable<[number, string]> {
+  ): Iterable<[number, number]> {
     const value = it.first().post_id;
     return [[value, key]];
   }
@@ -64,50 +61,47 @@ class UpvotesMapper {
 
 class PostsMapper {
   constructor(
-    private users: EagerCollection<string, User>,
-    private upvotes: EagerCollection<number, string>,
+    private users: EagerCollection<number, User>,
+    private upvotes: EagerCollection<number, number>,
   ) {}
 
   mapElement(
-    key: string,
+    key: number,
     it: NonEmptyIterator<Post>,
-  ): Iterable<[[number, string], Post & { upvotes: number; author: User }]> {
+  ): Iterable<[[number, number], Post & { upvotes: number; author: User }]> {
     const post = it.first();
-    const upvotes = this.upvotes.getArray(Number(key)).length;
-    const author = this.users.getOne(post.author_id.toString());
+    const upvotes = this.upvotes.getArray(key).length;
+    const author = this.users.getOne(post.author_id);
     return [[[-upvotes, key], { ...post, upvotes, author }]];
   }
 }
 
 class PostsCleanupKeyMapper {
   mapElement(
-    key: [number, string],
+    key: [number, number],
     it: NonEmptyIterator<TJSON>,
   ): Iterable<[string, TJSON]> {
     const post = it.first();
-    return [[key[1], post]];
+    return [[key[1].toString(), post]];
   }
 }
 
-const foo = () => {
-  return "bar";
-};
-
-class PostsResource {
-  // implements Resource {
-  constructor(private limit: number) {}
+class PostsResource implements Resource {
+  private limit: number;
+  
+  constructor(params: Record<string, string>) {
+    console.log(params.limit);
+    this.limit = Number(params.limit);
+  }
 
   reactiveCompute(
-    store: SKStore,
-    collections: Record<string, EagerCollection<TJSON, TJSON>>,
+    _store: SKStore,
+    collections: {
+      postsWithUpvotes: EagerCollection<[number, number], Post & { upvotes: number; author: User }>
+    },
   ): EagerCollection<string, TJSON> {
-    foo();
-    return (
-      collections.postWithUpvotes as EagerCollection<
-        [number, string],
-        Post & { upvotes: number; author: User }
-      >
-    )
+    // console.log("limit", this.limit);
+    return collections.postsWithUpvotes 
       .take(this.limit)
       .map(PostsCleanupKeyMapper);
   }
@@ -115,4 +109,4 @@ class PostsResource {
 
 // Spawn a local HTTP server to support reading/writing and creating
 // reactive requests.
-// runWithRESTServer(new HackerNewsService());
+runService(new HackerNewsService(), 8080);
