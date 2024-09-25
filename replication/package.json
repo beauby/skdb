@@ -33,6 +33,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
     "eslint": "^9.9.0",
-    "eslint-config-skiplabs": "file:../eslint-config"
+    "eslint-config-skiplabs": "file:../eslint-config",
+    "tsconfig-skiplabs": "file:../tsconfig"
   }
 }
