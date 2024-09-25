@@ -300,7 +300,7 @@ async function runRESTServer(runtime: SkipRuntime): Promise<express.Express> {
     const reactiveAuth = strReactiveAuth
       ? new Uint8Array(Buffer.from(strReactiveAuth, "base64"))
       : undefined;
-    try {
+    //   try {
       const data = await runtime.getAll(
         resourceName,
         req.query as JSONObject,
@@ -310,9 +310,9 @@ async function runRESTServer(runtime: SkipRuntime): Promise<express.Express> {
         res.set("X-Reactive-Response", JSON.stringify(data.reactive));
       }
       res.status(200).json(data.values);
-    } catch (e: any) {
-      res.status(500).json(e.message);
-    }
+    // } catch (e: any) {
+    //   res.status(500).json(e.message);
+    // }
   });
   // WRITES
   app.put("/v1/:collection/:id", async (req, res) => {

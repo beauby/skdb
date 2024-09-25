@@ -4,11 +4,12 @@ import type {
   Mapper,
   EagerCollection,
   NonEmptyIterator,
-  SimpleSkipService,
-  //  Resource,
+  SkipService,
+  Resource,
+  Param,
 } from "skip-runtime";
 
-// import { runWithRESTServer } from "skip-runtime";
+import { runService } from "skip-runtime";
 
 type Post = {
   author_id: number;
@@ -27,24 +28,22 @@ type Upvote = {
   user_id: number;
 };
 
-class HackerNewsService implements SimpleSkipService {
-  private inputTables = ["posts", "users", "upvotes"];
-  private resources = [PostsResource];
+class HackerNewsService implements SkipService {
+  inputCollections = ["posts", "users", "upvotes"];
+  resources = { posts: PostsResource };
 
   reactiveCompute(
-    store: SKStore,
-    inputCollections: Record<string, EagerCollection<TJSON, TJSON>>,
+    _store: SKStore,
+    inputCollections: {
+      posts: EagerCollection<string, Post>,
+      users: EagerCollection<string, User>,
+      upvotes: EagerCollection<string, Upvote>,
+    },
   ): Record<string, EagerCollection<TJSON, TJSON>> {
-    const upvotes = (
-      inputCollections.upvotes as EagerCollection<string, Upvote>
-    ).map(UpvotesMapper);
-    const postsWithUpvotes = (
-      inputCollections.posts as EagerCollection<string, Post>
-    ).map(
-      PostsMapper,
-      inputCollections.users as EagerCollection<string, User>,
-      upvotes,
-    );
+    console.log(inputCollections);
+    const upvotes = inputCollections.upvotes.map(UpvotesMapper);
+    const postsWithUpvotes = inputCollections.posts 
+      .map(PostsMapper, inputCollections.users, upvotes);
 
     return {
       postsWithUpvotes,
@@ -89,25 +88,23 @@ class PostsCleanupKeyMapper {
   }
 }
 
-const foo = () => {
-  return "bar";
-};
-
-class PostsResource {
-  // implements Resource {
-  constructor(private limit: number) {}
+class PostsResource implements Resource {
+  private limit: number;
+  
+  constructor(limit: Param, ...args: Param[]) {
+    // console.log(limit);
+    // console.log(args);
+    this.limit = limit as number;
+  }
 
   reactiveCompute(
-    store: SKStore,
-    collections: Record<string, EagerCollection<TJSON, TJSON>>,
+    _store: SKStore,
+    collections: {
+      postsWithUpvotes: EagerCollection<[number, string], Post & { upvotes: number; author: User }>
+    },
   ): EagerCollection<string, TJSON> {
-    foo();
-    return (
-      collections.postWithUpvotes as EagerCollection<
-        [number, string],
-        Post & { upvotes: number; author: User }
-      >
-    )
+    // console.log("limit", this.limit);
+    return collections.postsWithUpvotes 
       .take(this.limit)
       .map(PostsCleanupKeyMapper);
   }
@@ -115,4 +112,4 @@ class PostsResource {
 
 // Spawn a local HTTP server to support reading/writing and creating
 // reactive requests.
-// runWithRESTServer(new HackerNewsService());
+runService(new HackerNewsService(), 8080);
