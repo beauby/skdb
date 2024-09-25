@@ -47,7 +47,6 @@ export type {
   AsyncLazyCollection,
   EntryPoint,
   ExternalCall,
-  SkipReplication,
 } from "./skipruntime_api.js";
 
 export { ValueMapper } from "./skipruntime_api.js";
@@ -77,7 +76,7 @@ async function wasmUrl(): Promise<URL> {
   return new URL("./skip-runtime.wasm", import.meta.url);
 }
 
-export type CreateSKStore<K extends TJSON, V extends TJSON> = (
+export type CreateSKStore = (
   init: (
     skstore: SKStore,
     inputs: Record<string, EagerCollection<TJSON, TJSON>>,
@@ -86,9 +85,9 @@ export type CreateSKStore<K extends TJSON, V extends TJSON> = (
   remotes?: Record<string, EntryPoint>,
   tokens?: Record<string, number>,
   initLocals?: () => Promise<Record<string, [TJSON, TJSON][]>>,
-) => Promise<SkipBuilder<K, V>>;
+) => Promise<SkipBuilder>;
 
-export async function createSKStore<K extends TJSON, V extends TJSON>(
+export async function createSKStore(
   init: (
     skstore: SKStore,
     inputs: Record<string, EagerCollection<TJSON, TJSON>>,
@@ -97,10 +96,10 @@ export async function createSKStore<K extends TJSON, V extends TJSON>(
   remotes: Record<string, EntryPoint> = {},
   tokens: Record<string, number> = {},
   initLocals?: () => Promise<Record<string, [TJSON, TJSON][]>>,
-): Promise<SkipBuilder<K, V>> {
+): Promise<SkipBuilder> {
   const data = await runUrl(wasmUrl, modules, [], "SKDB_factory");
   const factory = data.environment.shared.get("SKStore") as SKStoreFactory;
-  return factory.runSKStore<K, V>(init, inputs, remotes, tokens, initLocals);
+  return factory.runSKStore(init, inputs, remotes, tokens, initLocals);
 }
 
 export function freeze<T>(value: T): T {
@@ -156,7 +155,7 @@ export async function fetchJSON<V>(
   method: "POST" | "GET" | "PUT" | "PATCH" | "HEAD" | "DELETE" = "GET",
   headers: Record<string, string>,
   data?: TJSON,
-): Promise<[V, Headers]> {
+): Promise<[V | null, Headers]> {
   const body = data ? JSON.stringify(data) : undefined;
   const response = await fetch(url, {
     method,
@@ -168,14 +167,14 @@ export async function fetchJSON<V>(
     },
     signal: AbortSignal.timeout(1000),
   });
-  const responseJSON = method != "HEAD" ? await response.json() : null;
+  const responseJSON = method != "HEAD" ? ((await response.json()) as V) : null;
   if (!response.ok) {
     throw new Error(JSON.stringify(responseJSON));
   }
   return [responseJSON, response.headers];
 }
 
-export class SkipRESTRuntime implements SkipRuntime {
+export class SkipRESTRuntime {
   private entrypoint: string;
 
   constructor(
@@ -207,15 +206,16 @@ export class SkipRESTRuntime implements SkipRuntime {
         };
       }
     }
-    const [values, headers] = await fetchJSON<Entry<K, V>[]>(
+    const [optValues, headers] = await fetchJSON<Entry<K, V>[]>(
       `${this.entrypoint}/v1/${resource}?${qParams}`,
       "GET",
       header,
     );
     const strReactiveResponse = headers.get("x-reactive-response");
     const reactive = strReactiveResponse
-      ? JSON.parse(strReactiveResponse)
+      ? (JSON.parse(strReactiveResponse) as ReactiveResponse)
       : undefined;
+    const values = optValues ?? [];
     return reactive ? { values, reactive } : { values };
   }
 
@@ -240,7 +240,9 @@ export class SkipRESTRuntime implements SkipRuntime {
       "HEAD",
       header,
     );
-    const reactiveResponse = headers.get("x-reactive-response")!;
+    const reactiveResponse = headers.get("x-reactive-response");
+    if (!reactiveResponse)
+      throw new Error("Reactive response must be suplied.");
     return JSON.parse(reactiveResponse) as ReactiveResponse;
   }
 
@@ -256,7 +258,7 @@ export class SkipRESTRuntime implements SkipRuntime {
       "GET",
       header,
     );
-    return data;
+    return data ?? [];
   }
 
   async put<V extends TJSON>(

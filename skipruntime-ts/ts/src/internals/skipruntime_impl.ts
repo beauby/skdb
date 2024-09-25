@@ -28,7 +28,6 @@ import type {
   Watermaked,
   Notifier,
   ReactiveResponse,
-  SkipReplication,
   SkipBuilder,
 } from "../skipruntime_api.js";
 
@@ -351,7 +350,7 @@ export class SKStoreFactoryImpl implements SKStoreFactory {
     return "SKStore";
   }
 
-  async runSKStore<K extends TJSON, V extends TJSON>(
+  async runSKStore(
     init: (
       skstore: SKStore,
       collections: Record<string, EagerCollection<TJSON, TJSON>>,
@@ -360,7 +359,7 @@ export class SKStoreFactoryImpl implements SKStoreFactory {
     remotes: Record<string, EntryPoint> = {},
     tokens: Record<string, number> = {},
     initLocals?: () => Promise<Record<string, [TJSON, TJSON][]>>,
-  ): Promise<SkipBuilder<K, V>> {
+  ): Promise<SkipBuilder> {
     const context = this.context();
     const skstore = new SKStoreImpl(context);
     const initValues = initLocals ? await initLocals() : {};
@@ -371,10 +370,7 @@ export class SKStoreFactoryImpl implements SKStoreFactory {
       initValues,
     );
     return (iCollections) => {
-      return [
-        new SkipRuntimeImpl(context, iCollections),
-        new SkipReplicationImpl(context),
-      ];
+      return new SkipRuntimeImpl(context, iCollections);
     };
   }
 }
@@ -506,7 +502,7 @@ export class SkipRuntimeImpl implements SkipRuntime {
     resource: string,
     params: JSONObject,
     reactiveAuth?: Uint8Array,
-  ): Promise<{ values: Entry<K, V>[]; reactive?: ReactiveResponse }> {
+  ): { values: Entry<K, V>[]; reactive?: ReactiveResponse } {
     if (!reactiveAuth) {
       reactiveAuth = new Uint8Array([]);
     }
@@ -516,43 +512,39 @@ export class SkipRuntimeImpl implements SkipRuntime {
       reactiveAuth,
     );
     const result = reader.getDiff("0");
-    return Promise.resolve({
+    return {
       reactive: { collection: name, watermark: result.watermark },
       values: result.values,
-    });
+    };
   }
 
   head(
     resource: string,
     params: JSONObject,
     reactiveAuth: Uint8Array,
-  ): Promise<ReactiveResponse> {
+  ): ReactiveResponse {
     const [name, _reader] = this.context.createReactiveRequest(
       resource,
       params,
       reactiveAuth,
     );
-    return Promise.resolve({ collection: name, watermark: "0" });
+    return { collection: name, watermark: "0" };
   }
 
   getOne<V extends TJSON>(
     resource: string,
     params: JSONObject,
     key: string,
-  ): Promise<V[]> {
+  ): V[] {
     const [_, reader] = this.context.createReactiveRequest<string, V>(
       resource,
       params,
       new Uint8Array([]),
     );
-    return Promise.resolve(reader.getArray(key));
+    return reader.getArray(key);
   }
 
-  put<V extends TJSON>(
-    collectionName: string,
-    key: string,
-    value: V[],
-  ): Promise<void> {
+  put<V extends TJSON>(collectionName: string, key: string, value: V[]): void {
     const collection = this.writables[collectionName];
     if (!collection) {
       throw new UnknownCollectionError(
@@ -560,13 +552,12 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.write(key, value);
-    return Promise.resolve();
   }
 
   patch<K extends TJSON, V extends TJSON>(
     collectionName: string,
     values: Entry<K, V>[],
-  ): Promise<void> {
+  ): void {
     const collection = this.writables[collectionName];
     if (!collection) {
       throw new UnknownCollectionError(
@@ -574,10 +565,9 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.writeAll(values);
-    return Promise.resolve();
   }
 
-  delete(collectionName: string, key: string): Promise<void> {
+  delete(collectionName: string, key: string): void {
     const collection = this.writables[collectionName];
     if (!collection) {
       throw new UnknownCollectionError(
@@ -585,16 +575,13 @@ export class SkipRuntimeImpl implements SkipRuntime {
       );
     }
     collection.delete([key]);
-    return Promise.resolve();
   }
-}
 
-export class SkipReplicationImpl<K extends TJSON, V extends TJSON>
-  implements SkipReplication<K, V>
-{
-  constructor(private context: Context) {}
-
-  subscribe(collectionName: string, from: string, notify: Notifier<K, V>) {
+  subscribe<K extends TJSON, V extends TJSON>(
+    collectionName: string,
+    from: string,
+    notify: Notifier<K, V>,
+  ) {
     return this.context.subscribe(collectionName, from, notify, true);
   }
 
