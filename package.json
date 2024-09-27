@@ -17,5 +17,11 @@
     "@types/node": "^22.5.5",
     "prettier": "^3.3.3",
     "eslint": "^9.9.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   }
 }
