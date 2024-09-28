@@ -15,7 +15,9 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "eslint"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",
