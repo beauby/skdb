@@ -1707,7 +1707,7 @@ mutable class Metadata{
   // A DIFile represents a file.  We copy clang's method of emitting the source
   // file as the name the user passed to the compiler and the directory as the
   // $PWD.
-  mutable fun diFile(filename: String): DIFile {
+  mutable fun diFile(filename: String, directory: ?String = None()): DIFile {
     this.diFileCache.getOrAdd(filename, () -> {
       DIFile(
         this.add(() -> {
@@ -1715,7 +1715,10 @@ mutable class Metadata{
           str.printf2(
             "!DIFile(filename: %r, directory: %r)",
             filename,
-            getcwd(),
+            directory match {
+            | Some(d) -> d
+            | None() -> getcwd()
+            },
           );
           str.toString()
         }),
