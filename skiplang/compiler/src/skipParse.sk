@@ -14,6 +14,7 @@ module FileCache;
 
 class InputSource(
   pkg_opt: ?String,
+  dir: String,
   path: String,
 ) extends SKStore.Key uses Show, Hashable {
   fun toString(): String {
@@ -48,9 +49,9 @@ const allFilesDir: SKStore.EHandle<SKStore.IID, InputPackage> = SKStore.EHandle(
 );
 
 fun pkgDelta(
-  old_srcs: Array<(String, Int)>,
-  new_srcs: Array<(String, Int)>,
-): (Array<String>, Array<String>, Array<String>) {
+  old_srcs: Array<(String, String, Int)>,
+  new_srcs: Array<(String, String, Int)>,
+): (Array<String, String>, Array<String, String>, Array<String, String>) {
   added_files = mutable Vector[];
   modified_files = mutable Vector[];
   deleted_files = mutable Vector[];
@@ -88,25 +89,31 @@ fun writeFiles(
 ): void {
   // Files in the current graph.
   current_files = mutable Map[
-    lib_name_opt => file_names
-      .map(fn ->
-        (
-          fn,
-          FileSystem.getLastModificationTime(fn),
-          FileSystem.readTextFile(fn),
+    lib_name_opt => InputPackage(
+      lib_name_opt,
+      file_names
+        .map(fn ->
+          (
+            fn,
+            FileSystem.getLastModificationTime(fn),
+            FileSystem.readTextFile(fn),
+          )
         )
-      )
-      .collect(Array),
+        .collect(Array),
+    ),
   ];
   for (dep_name => dep in dependencies) {
     (_, dep_meta) = dep;
-    current_files.set(Some(dep_name), dep_meta.sources)
+    current_files.set(
+      Some(dep_name),
+      dep_meta.sources.map(src -> (dep_meta.src_dir, src)),
+    )
   };
 
   // Files kept in the previous run.
   old_files = mutable Map[];
   for (pkg in allFilesDir.unsafeGetArray(context, SKStore.IID(0))) {
-    old_files.set(pkg.name, pkg.srcs)
+    old_files.set(pkg.name, pkg.srcs.map(src -> (pkg.src_dir, src)))
   };
 
   stale_pkgs = mutable Vector<?String>[];
@@ -119,9 +126,9 @@ fun writeFiles(
     (added_files, modified_files, deleted_files) = if (
       old_files.containsKey(pkg_opt)
     ) {
-      pkgDelta(old_files[pkg_opt], srcs.map(src -> (src.i0, src.i1)));
+      pkgDelta(old_files[pkg_opt], srcs.map(src -> (src.i0, src.i1, src.i2)));
     } else {
-      (srcs.map(src -> src.i0), Array[], Array[])
+      (srcs, Array[], Array[])
     };
 
     if (
@@ -134,27 +141,30 @@ fun writeFiles(
     stale_pkgs.push(pkg_opt);
 
     // Update added/modified files.
-    for (src_path in added_files.concat(modified_files)) {
+    for ((pkg_dir, src_path) in added_files.concat(modified_files)) {
       // FIXME: This is O(n).
       src_contents = srcs.find(src ~> src.i0 == src_path).fromSome().i2;
       fileDir.writeArray(
         context,
-        InputSource(pkg_opt, src_path),
+        InputSource(pkg_opt, pkg_dir, src_path),
         Array[SKStore.StringFile(src_contents)],
       )
     };
     // Invalidate deleted files.
-    for (src_path in deleted_files) {
+    for ((pkg_dir, src_path) in deleted_files) {
       fileDir.writeArray(
         context,
-        InputSource(pkg_opt, src_path),
+        InputSource(pkg_opt, pkg_dir, src_path),
         Array[SKStore.StringFile("")],
       )
     }
   };
 
   new_old_files = current_files
-    .map((_, srcs) -> srcs.map(src -> (src.i0, src.i1)))
+    .map((_, pkg) -> {
+      (pkg_dir, srcs) = pkg;
+      (pkg_dir, srcs.map(src -> (src.i0, src.i1)))
+    })
     .clone();
   // Keep analysis for all non-stale packages.
   for (pkg_opt => srcs in old_files) {
@@ -170,7 +180,7 @@ fun writeFiles(
     SKStore.IID(0),
     new_old_files
       .items()
-      .map(pkg -> InputPackage(pkg.i0, pkg.i1))
+      .map(pkg -> InputPackage(pkg.i0, pkg.i1.i0, pkg.i1.i1))
       .collect(Array),
   );
 }

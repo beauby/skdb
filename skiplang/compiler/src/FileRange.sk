@@ -83,11 +83,11 @@ class .FileRange extends Pos {
 }
 
 const none: FileRange = create(
-  FileCache.InputSource(None(), ""),
+  FileCache.InputSource(None(), "", ""),
   TextRange.none,
 );
 const builtin: FileRange = create(
-  FileCache.InputSource(None(), "<builtin>"),
+  FileCache.InputSource(None(), "", "<builtin>"),
   TextRange.none,
 );
 

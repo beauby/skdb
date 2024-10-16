@@ -13,11 +13,16 @@ fun prettyPrint(
 ): Result<String, SkipError.Error> {
   parsed = SkipParser.parseSource(contents, false);
   if (parsed.errors.size() > 0) {
+    filedir = if (Path.isAbsolute(filename)) {
+      ""
+    } else {
+      getcwd()
+    };
     // Parse errors are expected. Exceptions are bugs.
     Failure(
       SkipError.errorFromSyntaxError(
         parsed.errors[0],
-        FileCache.InputSource(None(), filename),
+        FileCache.InputSource(None(), filedir, filename),
       ),
     )
   } else {
