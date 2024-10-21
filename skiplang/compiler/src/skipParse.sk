@@ -12,6 +12,20 @@ module alias Error = SkipError;
 
 module FileCache;
 
+class InputPackage(
+  pkg_dir: ?String,
+  srcs: Array<(String, Int)>,
+) extends SKStore.File
+
+const packageDirName: SKStore.DirName = SKStore.DirName::create(
+  "/packageCache/",
+);
+const packageDir: SKStore.EHandle<SKStore.SID, InputPackage> = SKStore.EHandle(
+  SKStore.SID::keyType,
+  InputPackage,
+  packageDirName,
+);
+
 class InputSource(
   pkg_opt: ?String,
   dir: String,
@@ -32,11 +46,6 @@ const fileDir: SKStore.EHandle<
   fileDirName,
 );
 
-class InputPackage(
-  name: ?String,
-  srcs: Array<(String, Int)>,
-) extends SKStore.File
-
 // Contains the paths of all source files the analysis of which has
 // been kept so far.
 const allFilesDirName: SKStore.DirName = SKStore.DirName::create(
@@ -49,8 +58,8 @@ const allFilesDir: SKStore.EHandle<SKStore.IID, InputPackage> = SKStore.EHandle(
 );
 
 fun pkgDelta(
-  old_srcs: Array<(String, String, Int)>,
-  new_srcs: Array<(String, String, Int)>,
+  old_srcs: Array<(String, Int)>,
+  new_srcs: Array<(String, Int)>,
 ): (Array<String, String>, Array<String, String>, Array<String, String>) {
   added_files = mutable Vector[];
   modified_files = mutable Vector[];
@@ -91,6 +100,7 @@ fun writeFiles(
   current_files = mutable Map[
     lib_name_opt => InputPackage(
       lib_name_opt,
+      getcwd(),
       file_names
         .map(fn ->
           (
@@ -105,8 +115,7 @@ fun writeFiles(
   for (dep_name => dep in dependencies) {
     (_, dep_meta) = dep;
     current_files.set(
-      Some(dep_name),
-      dep_meta.sources.map(src -> (dep_meta.src_dir, src)),
+      InputPackage(Some(dep_name), dep_meta.pkg_dir, dep_meta.sources),
     )
   };
 
